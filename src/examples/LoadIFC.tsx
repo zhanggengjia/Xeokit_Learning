@@ -172,7 +172,7 @@ export default function CameraControlOrbitDuplex() {
   }, []);
 
   return (
-    <div style={{ position: 'relative', height: '100vh' }}>
+    <div className="relative h-full">
       {/* 主 3D 場景的 canvas（鋪滿整頁） */}
       <canvas
         ref={sceneCanvasRef}
