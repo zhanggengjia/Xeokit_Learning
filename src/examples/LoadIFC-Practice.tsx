@@ -11,46 +11,36 @@ import {
 import * as WebIFC from 'web-ifc'; // web-ifc 模組，提供 IfcAPI
 
 export default function CameraControlOrbitDuplex() {
-  // === 1) 建立 Refs：抓住 DOM 元素 ===
-  // 主場景 canvas
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // NavCube canvas
   const navCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // pivot DOM（小圓點）
   const pivotRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!sceneCanvasRef.current || !navCanvasRef.current) return;
 
-    // 狀態變數（給清理用）
     let destroyed = false;
     let sceneModel: any | undefined;
     let navCube: NavCubePlugin | undefined;
 
-    // === 2) 工具：同步像素解析度 ===
-    // 原因：canvas 真正的繪圖大小是 .width/.height，不是 CSS。
-    // 如果只改 CSS，畫面會糊，必須把 canvas.width/height = clientSize × DPR。
     const syncCanvasResolution = (canvas: HTMLCanvasElement) => {
       const dpr = window.devicePixelRatio || 1;
       const targetW = Math.max(1, Math.round(canvas.clientWidth * dpr));
       const targetH = Math.max(1, Math.round(canvas.clientHeight * dpr));
+
       if (canvas.width !== targetW || canvas.height !== targetH) {
         canvas.width = targetW;
         canvas.height = targetH;
       }
     };
 
-    // === 3) 建 Viewer ===
     const viewer = new Viewer({
-      canvasElement: sceneCanvasRef.current!, // 指定主場景 canvas
-      transparent: true, // 背景透明
+      canvasElement: sceneCanvasRef.current!,
+      transparent: true,
     });
 
-    // 初始化先同步一次像素尺寸（避免初始就糊）
-    syncCanvasResolution(sceneCanvasRef.current);
-    syncCanvasResolution(navCanvasRef.current);
+    syncCanvasResolution(sceneCanvasRef.current!);
+    syncCanvasResolution(navCanvasRef.current!);
 
-    // === 4) ResizeObserver：監聽 CSS 尺寸變化 → 同步像素 ===
     const roScene = new ResizeObserver(() => {
       if (destroyed || !sceneCanvasRef.current) return;
       syncCanvasResolution(sceneCanvasRef.current);
@@ -65,13 +55,12 @@ export default function CameraControlOrbitDuplex() {
     });
     roNav.observe(navCanvasRef.current);
 
-    // 保險：window resize 事件 → 同步一次
     const onWinResize = () => {
-      if (destroyed) return;
       if (sceneCanvasRef.current) syncCanvasResolution(sceneCanvasRef.current);
       if (navCanvasRef.current) syncCanvasResolution(navCanvasRef.current);
       viewer.scene.render();
     };
+
     window.addEventListener('resize', onWinResize);
 
     // === 5) 設定相機 ===
@@ -79,10 +68,9 @@ export default function CameraControlOrbitDuplex() {
     viewer.camera.look = [4.39, 3.72, 8.89]; // 注視點
     viewer.camera.up = [0.1, 0.97, -0.2]; // 上方向
 
-    // === 6) 相機控制 ===
     const cameraControl = viewer.cameraControl;
-    cameraControl.navMode = 'orbit'; // 軌道模式
-    cameraControl.followPointer = true; // pivot 跟隨滑鼠
+    cameraControl.navMode = 'orbit';
+    cameraControl.followPointer = true;
 
     // === 7) 建 pivot DOM（小圓點）===
     const pivot = document.createElement('div');
@@ -100,100 +88,33 @@ export default function CameraControlOrbitDuplex() {
     pivotRef.current = pivot;
     cameraControl.pivotElement = pivot;
 
-    // === 8) 建 NavCube（右下角方塊）===
     navCube = new NavCubePlugin(viewer, {
-      canvasElement: navCanvasRef.current!, // 用專屬 canvas
+      canvasElement: navCanvasRef.current,
       visible: true,
       cameraFly: true,
       cameraFitFOV: 45,
       cameraFlyDuration: 0.5,
     });
 
-    // === 9) 建地面格線 ===
     new Mesh(viewer.scene, {
       geometry: new VBOGeometry(
         viewer.scene,
-        buildGridGeometry({ size: 300, divisions: 60 }) // 產格線
+        buildGridGeometry({ size: 300, divisions: 60 })
       ),
       material: new PhongMaterial(viewer.scene, {
-        color: [0, 0, 0],
-        emissive: [0.4, 0.4, 0.4],
+        color: [0.0, 0.0, 0.0],
+        emisiive: [0.4, 0.4, 0.4],
       }),
-      position: [0, -1.6, 0], // 壓低到模型下方
+      position: [0, -1.6, 0],
       collidable: false,
     });
 
-    // === 10) 載入 IFC ===
-    (async () => {
-      try {
-        // 10-1 建 IfcAPI
-        const IfcAPI = new WebIFC.IfcAPI();
-
-        // 10-2 設定 WASM 路徑
-        let wasmBase = `${import.meta.env.BASE_URL}web-ifc/`;
-        const ensureWasmReachable = async (base: string) => {
-          const url = `${base}web-ifc.wasm`;
-          const res = await fetch(url, { method: 'HEAD' });
-          if (!res.ok) throw new Error(`WASM not reachable: ${url}`);
-        };
-        try {
-          await ensureWasmReachable(wasmBase);
-        } catch {
-          wasmBase = 'https://unpkg.com/web-ifc@0.0.62/';
-        }
-
-        // 10-3 初始化 IfcAPI
-        IfcAPI.SetWasmPath(wasmBase);
-        await IfcAPI.Init();
-        if (destroyed) return;
-
-        // 10-4 建 IFC Loader
-        const ifcLoader = new WebIFCLoaderPlugin(viewer, { WebIFC, IfcAPI });
-
-        // 10-5 載入 IFC 模型
-        sceneModel = ifcLoader.load({
-          id: 'myIFC',
-          src: '/models/Duplex.ifc', // IFC 檔案放在 public/models 下
-          edges: true,
-        });
-
-        // 10-6 載完飛到模型
-        sceneModel.on?.('loaded', () => {
-          viewer.cameraFlight?.flyTo(sceneModel);
-        });
-      } catch (err) {
-        console.error('IFC load failed:', err);
-      }
-    })();
-
-    // === 11) 清理：卸載時釋放資源 ===
     return () => {
       destroyed = true;
-      try {
-        window.removeEventListener('resize', onWinResize);
-        roScene.disconnect();
-        roNav.disconnect();
-        navCube?.destroy?.();
-        sceneModel?.destroy?.();
-        viewer?.destroy?.();
-      } finally {
-        if (pivotRef.current) {
-          document.body.removeChild(pivotRef.current);
-          pivotRef.current = null;
-        }
-      }
     };
   }, []);
-
-  // === JSX：容器 + 兩顆 canvas ===
   return (
-    <div className="w-full h-[90%]">
-      {/* 主 3D 場景 */}
-      <canvas
-        ref={sceneCanvasRef}
-        style={{ width: '100%', height: '100%', display: 'block' }}
-      />
-      {/* NavCube：大小靠 width/height，位置靠 CSS */}
+    <>
       <canvas
         ref={navCanvasRef}
         width={250}
@@ -204,10 +125,8 @@ export default function CameraControlOrbitDuplex() {
           bottom: 50,
           width: 250,
           height: 250,
-          zIndex: 200000,
-          pointerEvents: 'auto',
         }}
       />
-    </div>
+    </>
   );
 }
