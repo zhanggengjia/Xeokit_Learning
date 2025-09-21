@@ -1,5 +1,5 @@
 // src/App.tsx
-import LoadXKT from './examples/LoadXKT';
+// import LoadXKT from './examples/LoadXKT';
 import LoadIFC2 from './examples/LoadIFC2';
 
 export default function App() {

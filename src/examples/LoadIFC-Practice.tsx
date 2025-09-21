@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react';
 import {
   Viewer, // xeokit 核心 Viewer：管理 Scene / Camera / Render
-  WebIFCLoaderPlugin, // 載入 IFC 的 plugin（內部用 web-ifc 解析）
+  // WebIFCLoaderPlugin, // 載入 IFC 的 plugin（內部用 web-ifc 解析）
   Mesh, // Mesh：建立一個場景中的幾何物件
   VBOGeometry, // 頂點緩衝幾何（Vertex Buffer Object）
   buildGridGeometry, // 幫助函式：產生格線
   PhongMaterial, // 簡單材質（漫反射 + 自發光）
   NavCubePlugin, // 右下角方塊導航
 } from '@xeokit/xeokit-sdk';
-import * as WebIFC from 'web-ifc'; // web-ifc 模組，提供 IfcAPI
+// import * as WebIFC from 'web-ifc'; // web-ifc 模組，提供 IfcAPI
 
 export default function CameraControlOrbitDuplex() {
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -19,7 +19,7 @@ export default function CameraControlOrbitDuplex() {
     if (!sceneCanvasRef.current || !navCanvasRef.current) return;
 
     let destroyed = false;
-    let sceneModel: any | undefined;
+    // let sceneModel: any | undefined;
     let navCube: NavCubePlugin | undefined;
 
     const syncCanvasResolution = (canvas: HTMLCanvasElement) => {
