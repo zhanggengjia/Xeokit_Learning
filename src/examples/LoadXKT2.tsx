@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 
 import {
   Viewer, // xeokit核心Viewer
-  WebIFCLoaderPlugin, // IFC載入plugin
   Mesh,
   VBOGeometry,
   buildGridGeometry,
@@ -10,9 +9,8 @@ import {
   NavCubePlugin,
   SectionPlanesPlugin,
   math,
+  XKTLoaderPlugin,
 } from '@xeokit/xeokit-sdk';
-
-import * as WebIFC from 'web-ifc';
 
 // 你的React元件
 export default function CameraControlOrbitDuplex() {
@@ -27,7 +25,6 @@ export default function CameraControlOrbitDuplex() {
     let destroyed = false;
     let sceneModel: any | undefined;
     let navCube: NavCubePlugin | undefined;
-    let sectionPlanes: SectionPlanesPlugin | undefined;
 
     // 同步canvas像素解析度
     const syncCanvasResolution = (canvas: HTMLCanvasElement) => {
@@ -121,49 +118,80 @@ export default function CameraControlOrbitDuplex() {
       collidable: false,
     });
 
-    // SectionPlanesPlugin 初始化
-    sectionPlanes = new SectionPlanesPlugin(viewer);
+    // C) 建立 SectionPlanes
+    const sectionPlanes = new SectionPlanesPlugin(viewer);
 
-    // 建立一個section plane，初始位置平面垂直於X軸（可根據需求調整）
-    const sectionPlaneId = sectionPlanes.createSectionPlane({
-      dir: [1, 0, 0], // 方向向量，X軸方向切割面
-      pos: [0, 0, 0], // 初始位置（沿方向軸的偏移）
-    });
-
-    // 顯示該 section plane 的控制軸讓用戶操作移動平面
-    sectionPlanes.showControl(sectionPlaneId.id);
-
-    // IFC載入
+    // Load XKT
     (async () => {
       try {
-        const IfcAPI = new WebIFC.IfcAPI();
-        let wasmBase = `${import.meta.env.BASE_URL}web-ifc/`;
+        const xktLoader = new XKTLoaderPlugin(viewer);
 
-        const ensureWasmReachable = async (base: string) => {
-          const url = `${base}web-ifc.wasm`;
-          const res = await fetch(url, { method: 'HEAD' });
-          if (!res.ok) throw new Error(`WASM not reachable: ${url}`);
-        };
-
-        try {
-          await ensureWasmReachable(wasmBase);
-        } catch {
-          wasmBase = 'https://unpkg.com/web-ifc@0.0.62/';
-        }
-
-        IfcAPI.SetWasmPath(wasmBase);
-        await IfcAPI.Init();
-
-        if (destroyed) return;
-
-        const ifcLoader = new WebIFCLoaderPlugin(viewer, { WebIFC, IfcAPI });
-        sceneModel = ifcLoader.load({
-          id: 'myIFC',
-          src: '/models/Duplex.ifc',
+        sceneModel = xktLoader.load({
+          id: 'myModel',
+          src: '/models/Duplex_A_20110505.glTFEmbedded.xkt',
           edges: true,
         });
 
         sceneModel.on?.('loaded', () => {
+          (viewer.scene as any).sectionPlanesEnabled = true;
+
+          // 建 cap material（與示例同：重點 backfaces: true）
+          const capMat = new PhongMaterial(viewer.scene, {
+            diffuse: [1.0, 0.0, 0.0],
+            backfaces: true,
+          });
+
+          // 逐一套 capMaterial / clippable
+          const objs = (sceneModel as any).objects;
+          for (const id in objs) {
+            if (!Object.hasOwn(objs, id)) continue;
+            const entity = objs[id];
+            if (!entity) continue;
+            (entity as any).capMaterial = capMat; // 保留
+            (entity as any).capMaterialId = capMat.id; // 新增這行
+            (entity as any).clippable = true;
+
+            // 1) 先確認 setter 有被呼叫：讀取 prototype 的屬性描述
+            const desc = Object.getOwnPropertyDescriptor(
+              Object.getPrototypeOf(entity),
+              'capMaterial'
+            );
+            console.log('capMaterial descriptor:', desc); // 看看有沒有 set / get
+
+            // 2) 不要讀 entity.capMaterial 了，直接印你手上的 capMat（一定有值）
+            console.log('local capMat.diffuse =', capMat.diffuse);
+
+            // 3) 如果有 capMaterialId 這個欄位，同步一下（某些版本需要）
+            (entity as any).capMaterialId = capMat.id;
+            console.log(
+              'entity.capMaterialId after set =',
+              (entity as any).capMaterialId
+            );
+          }
+
+          // 建一個切面 + 控制器
+          const sectionPlane = sectionPlanes!.createSectionPlane({
+            id: 'mainPlane',
+            pos: [0.5, 2.5, 5.0],
+            dir: math.normalizeVec3([0, 0, -0.5]),
+          });
+          sectionPlanes!.showControl(sectionPlane.id);
+
+          console.log(sectionPlanes);
+
+          console.log(
+            'planes count =',
+            (sectionPlanes as any)._sectionPlanes?.length
+          );
+          console.log(
+            'plane active =',
+            (sectionPlanes as any)._sectionPlanes?.mainPlane?.active
+          );
+
+          // 為避免邊線蓋住截面填色，先關閉邊線觀察一次
+          (viewer.scene as any).edgesEnabled = false;
+          (viewer.scene as any).setDirty?.(true);
+
           viewer.cameraFlight?.flyTo(sceneModel);
           viewer.scene.render();
         });
@@ -197,7 +225,7 @@ export default function CameraControlOrbitDuplex() {
       {/* 主場景canvas */}
       <canvas
         ref={sceneCanvasRef}
-        style={{ width: '100%', height: '100%', display: 'block' }}
+        style={{ width: '100%', height: '80%', display: 'block' }}
       />
       {/* NavCube canvas */}
       <canvas
@@ -211,6 +239,19 @@ export default function CameraControlOrbitDuplex() {
           width: 250,
           height: 250,
           zIndex: 200000,
+          pointerEvents: 'auto',
+        }}
+      />
+      {/* SectionPlanes overview canvas */}
+      <canvas
+        id="mySectionPlanesOverviewCanvas"
+        width={220}
+        height={120}
+        style={{
+          position: 'absolute',
+          right: 10,
+          bottom: 10,
+          zIndex: 200001,
           pointerEvents: 'auto',
         }}
       />

@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react';
 import {
   Viewer, // xeokit 核心 Viewer：管理 Scene / Camera / Render
-  // WebIFCLoaderPlugin, // 載入 IFC 的 plugin（內部用 web-ifc 解析）
+  WebIFCLoaderPlugin, // 載入 IFC 的 plugin（內部用 web-ifc 解析）
   Mesh, // Mesh：建立一個場景中的幾何物件
   VBOGeometry, // 頂點緩衝幾何（Vertex Buffer Object）
   buildGridGeometry, // 幫助函式：產生格線
   PhongMaterial, // 簡單材質（漫反射 + 自發光）
   NavCubePlugin, // 右下角方塊導航
 } from '@xeokit/xeokit-sdk';
-// import * as WebIFC from 'web-ifc'; // web-ifc 模組，提供 IfcAPI
+import * as WebIFC from 'web-ifc'; // web-ifc 模組，提供 IfcAPI
 
 export default function CameraControlOrbitDuplex() {
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -19,7 +19,7 @@ export default function CameraControlOrbitDuplex() {
     if (!sceneCanvasRef.current || !navCanvasRef.current) return;
 
     let destroyed = false;
-    // let sceneModel: any | undefined;
+    let sceneModel: any | undefined;
     let navCube: NavCubePlugin | undefined;
 
     const syncCanvasResolution = (canvas: HTMLCanvasElement) => {
@@ -109,8 +109,59 @@ export default function CameraControlOrbitDuplex() {
       collidable: false,
     });
 
+    (async () => {
+      try {
+        const IfcAPI = new WebIFC.IfcAPI();
+
+        let wasmBase = `${import.meta.env.BASE_URL}/web-ifc/`;
+
+        const ensureWasmReachable = async (base: string) => {
+          const url = `${base}web-ifc.wasm`;
+          const res = await fetch(url, { method: 'HEAD' });
+          if (!res.ok) throw new Error(`WASM not reachable: ${url}`);
+        };
+
+        try {
+          await ensureWasmReachable(wasmBase);
+        } catch {
+          wasmBase = 'https://unpkg.com/web-ifc@0.0.62/';
+        }
+
+        IfcAPI.SetWasmPath(wasmBase);
+        await IfcAPI.Init();
+        if (destroyed) return;
+
+        const ifcLoader = new WebIFCLoaderPlugin(viewer, { WebIFC, IfcAPI });
+
+        sceneModel = ifcLoader.load({
+          id: 'myIFC',
+          src: '/models/Duplex.ifc',
+          edges: true,
+        });
+
+        sceneModel.on?.('loaded', () => {
+          viewer.cameraFlight?.flyTo(sceneModel);
+        });
+      } catch (err) {
+        console.error('IFC load failed:', err);
+      }
+    })();
+
     return () => {
       destroyed = true;
+      try {
+        window.removeEventListener('resize', onWinResize);
+        roScene.disconnect();
+        roNav.disconnect();
+        navCube?.destroy?.();
+        sceneModel?.destroy?.();
+        viewer?.destroy?.();
+      } finally {
+        if (pivotRef.current) {
+          document.body.removeChild(pivotRef.current);
+          pivotRef.current = null;
+        }
+      }
     };
   }, []);
   return (
