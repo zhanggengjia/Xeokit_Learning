@@ -25,7 +25,11 @@ import * as WebIFC from 'web-ifc'; // web-ifc 模組：提供 IfcAPI 與常數�
  * - IFC 路徑必須正確（public/models/xxx.ifc），否則會把 HTML 當檔案讀入造成崩潰
  * - NavCube 的尺寸靠 canvas 本身寬高控制，不是傳 size 參數
  */
-export default function CameraControlOrbitDuplex() {
+export default function CameraControlOrbitDuplex({
+  src = '/models/Duplex.ifc',
+}: {
+  src?: string;
+}) {
   // 「主場景」用的 <canvas>
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // NavCube 專用 <canvas>
@@ -140,7 +144,7 @@ export default function CameraControlOrbitDuplex() {
         //     - 初期建議 edges: false，確定通了再開描邊避免額外負載
         sceneModel = ifcLoader.load({
           id: 'myIFC',
-          src: '/models/Duplex.ifc', // 你的檔案路徑（放在 public/models/ 下）
+          src, // 你的檔案路徑（放在 public/models/ 下）
           edges: true,
           // excludeTypes: ["IfcSpace"], // 若檔大可先排除空間來加速
         });
@@ -169,7 +173,7 @@ export default function CameraControlOrbitDuplex() {
         }
       }
     };
-  }, []);
+  }, [src]);
 
   return (
     <div className="relative h-full">

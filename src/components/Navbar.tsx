@@ -4,9 +4,19 @@ type NavbarProps = {
   items: string[];
   current: number;
   onSelect: React.Dispatch<React.SetStateAction<number>>;
+  selectModel: React.Dispatch<React.SetStateAction<number>>;
+  modelItems: string[];
+  modelCurrent: number;
 };
 
-const Navbar = ({ items, current, onSelect }: NavbarProps) => {
+const Navbar = ({
+  items,
+  current,
+  onSelect,
+  selectModel,
+  modelItems,
+  modelCurrent,
+}: NavbarProps) => {
   return (
     <nav className="sticky top-0 z-50 bg-base-100/80 backdrop-blur border-b border-base-200 theme-transition">
       <div className="align-element navbar lg:px-10">
@@ -70,6 +80,37 @@ const Navbar = ({ items, current, onSelect }: NavbarProps) => {
           <h2 className="text-3xl font-bold">
             <span className="text-sky-600">Xeokit</span>Learning
           </h2>
+        </div>
+        {/* End */}
+        <div className="navbar-end">
+          <div className="dropdown">
+            <label
+              tabIndex={0}
+              className="btn btn-ghost"
+              aria-label="open menu"
+            >
+              <FaBarsStaggered className="h-6 w-6" />
+            </label>
+            <ul
+              tabIndex={0}
+              className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-200 rounded-box w-52 right-0 -translate-x-2"
+              role="menu"
+            >
+              {modelItems.map((name, idx) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    className={idx === modelCurrent ? 'active' : ''}
+                    onClick={() => selectModel(idx)}
+                    aria-current={idx === modelCurrent ? 'page' : undefined}
+                    role="menuitem"
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </nav>

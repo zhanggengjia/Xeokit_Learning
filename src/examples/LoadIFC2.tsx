@@ -15,7 +15,11 @@ import {
 import * as WebIFC from 'web-ifc';
 
 // 你的React元件
-export default function CameraControlOrbitDuplex() {
+export default function CameraControlOrbitDuplex({
+  src = '/models/Duplex.ifc',
+}: {
+  src?: string;
+}) {
   // DOM 參考
   const sceneCanvasRef = useRef<HTMLCanvasElement>(null);
   const navCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -159,7 +163,7 @@ export default function CameraControlOrbitDuplex() {
         const ifcLoader = new WebIFCLoaderPlugin(viewer, { WebIFC, IfcAPI });
         sceneModel = ifcLoader.load({
           id: 'myIFC',
-          src: '/models/Duplex.ifc',
+          src,
           edges: true,
         });
 
@@ -190,7 +194,7 @@ export default function CameraControlOrbitDuplex() {
         }
       }
     };
-  }, []);
+  }, [src]);
 
   return (
     <>

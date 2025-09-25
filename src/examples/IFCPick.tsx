@@ -10,7 +10,11 @@ import {
 } from '@xeokit/xeokit-sdk';
 import * as WebIFC from 'web-ifc';
 
-export default function CameraControlOrbitDuplex() {
+export default function CameraControlOrbitDuplex({
+  src = '/models/Duplex.ifc',
+}: {
+  src?: string;
+}) {
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const navCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const pivotRef = useRef<HTMLDivElement | null>(null);
@@ -100,7 +104,7 @@ export default function CameraControlOrbitDuplex() {
         const ifcLoader = new WebIFCLoaderPlugin(viewer, { WebIFC, IfcAPI });
         sceneModel = ifcLoader.load({
           id: 'myIFC',
-          src: '/models/Duplex.ifc',
+          src,
           edges: true,
         });
 
@@ -156,7 +160,7 @@ export default function CameraControlOrbitDuplex() {
         }
       }
     };
-  }, []);
+  }, [src]);
 
   return (
     <div className="relative h-full">
