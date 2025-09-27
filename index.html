@@ -5,11 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Xeokit Learning</title>
-    <link href="/src/style.css" rel="stylesheet" />
-    <script>
-      // 強制指定正確 worker 路徑，避免套件去根目錄找
-      window.WEB_IFC_WORKER_PATH = '/web-ifc/web-ifc-mt.worker.js';
-    </script>
+    <!-- <link href="/src/style.css" rel="stylesheet" /> -->
+
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   </head>
   <body>
     <div id="root" style="width: 100%; height: 100%; display: block"></div>
