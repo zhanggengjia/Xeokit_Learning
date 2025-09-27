@@ -13,7 +13,11 @@ import {
 } from '@xeokit/xeokit-sdk';
 
 // 你的React元件
-export default function CameraControlOrbitDuplex() {
+export default function CameraControlOrbitDuplex({
+  src = '/mocels/xkt/v8/ifc/Duplex.ifc.xkt',
+}: {
+  src?: string;
+}) {
   // DOM 參考
   const sceneCanvasRef = useRef<HTMLCanvasElement>(null);
   const navCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,7 +132,7 @@ export default function CameraControlOrbitDuplex() {
 
         sceneModel = xktLoader.load({
           id: 'myModel',
-          src: '/models/Duplex_A_20110505.glTFEmbedded.xkt',
+          src,
           edges: true,
         });
 
@@ -218,14 +222,14 @@ export default function CameraControlOrbitDuplex() {
         }
       }
     };
-  }, []);
+  }, [src]);
 
   return (
     <>
       {/* 主場景canvas */}
       <canvas
         ref={sceneCanvasRef}
-        style={{ width: '100%', height: '80%', display: 'block' }}
+        style={{ width: '100%', height: '100%', display: 'block' }}
       />
       {/* NavCube canvas */}
       <canvas

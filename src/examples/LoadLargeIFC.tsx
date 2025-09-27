@@ -128,74 +128,10 @@ export default function LoadIFC2({
     (async () => {
       const base = wasmBaseURL.endsWith('/') ? wasmBaseURL : wasmBaseURL + '/';
 
-      // 1) 檢查兩種 worker URL 是否可用（根/資料夾）
-      const checkHEAD = async (url: string) => {
-        try {
-          const r = await fetch(url, { method: 'HEAD' });
-          return r.ok;
-        } catch {
-          return false;
-        }
-      };
-      const workerInFolder = await checkHEAD(`${base}web-ifc-mt.worker.js`);
-      const workerAtRoot = await checkHEAD(rootWorkerURL);
-
-      // 2) 先嘗試多執行緒；初始化失敗再回退單執行緒
-      const initIFC = async (forceSingleThread = false) => {
-        const IfcAPI = new WebIFC.IfcAPI();
-
-        // wasm 路徑（夾帶 wasm / mt.wasm）
-        IfcAPI.SetWasmPath(base);
-
-        // 指定 worker 路徑（優先用你確定能開的 URL）
-        const desiredWorkerURL = workerInFolder
-          ? `${base}web-ifc-mt.worker.js`
-          : workerAtRoot
-          ? rootWorkerURL
-          : ''; // 皆不可用時留空 → 走 ST
-
-        // 新版 web-ifc
-        if (
-          typeof (IfcAPI as any).SetWorkerPath === 'function' &&
-          !forceSingleThread &&
-          desiredWorkerURL
-        ) {
-          (IfcAPI as any).SetWorkerPath(desiredWorkerURL);
-        } else {
-          // 舊版相容（或強制 ST 就不要設）
-          if (!forceSingleThread && desiredWorkerURL) {
-            (globalThis as any).WEB_IFC_WORKER_PATH = desiredWorkerURL;
-          }
-        }
-
-        // 初始化（若 crossOriginIsolated + worker 可用 → MT；否則 ST）
-        await IfcAPI.Init();
-        return IfcAPI;
-      };
-
-      let IfcAPI: WebIFC.IfcAPI | null = null;
-
-      try {
-        // 嘗試 MT
-        IfcAPI = await initIFC(false);
-        // 額外檢查：若非 crossOriginIsolated，雖然能 Init，但實際仍是 ST
-        if (!(window as any).crossOriginIsolated) {
-          console.warn(
-            '[web-ifc] not crossOriginIsolated → running single-thread'
-          );
-        }
-      } catch (e) {
-        console.warn(
-          '[web-ifc] MT init failed, falling back to single-thread:',
-          e
-        );
-        // ★ 這裡捕捉到像你遇到的 createObjectURL 錯誤 → 退 ST 再 Init
-        IfcAPI = await initIFC(true);
-      }
-
-      if (destroyed || !IfcAPI) return;
-
-      // 3) 建 loader（你的型別需要 IfcAPI + WebIFC）
+      const IfcAPI = new WebIFC.IfcAPI();
+      IfcAPI.SetWasmPath(base); // 只指定資料夾（內含 web-ifc.wasm / web-ifc-mt.wasm）
+      await IfcAPI.Init(); // 有 COOP/COEP 且根目錄薄殼就緒 → 自動走 MT
+      // 再交給 xeokit
       const ifcLoader = new WebIFCLoaderPlugin(viewer, { IfcAPI, WebIFC });
 
       // 4) 載入 IFC（先關 edges，loaded 後再建 NavCube）

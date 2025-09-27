@@ -16,7 +16,7 @@ import * as WebIFC from 'web-ifc';
 
 // 你的React元件
 export default function CameraControlOrbitDuplex({
-  src = '/models/Duplex.ifc',
+  src = '/models/ifc/Duplex.ifc',
 }: {
   src?: string;
 }) {
