@@ -95,8 +95,8 @@ export default function XktModelViewer({
             position: 'absolute',
             right: 10,
             bottom: 50,
-            width: 250,
-            height: 250,
+            width: 'clamp(100px, 20vw, 300px)', // 最小 100px，最大 300px，正常跟螢幕 20% 綁定
+            height: 'clamp(100px, 20vw, 300px)',
             zIndex: 200000,
             pointerEvents: 'auto',
           }}

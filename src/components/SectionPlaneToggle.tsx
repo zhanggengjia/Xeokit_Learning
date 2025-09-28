@@ -171,7 +171,7 @@ export default function SectionPlaneToggle({
       className={className}
       style={{
         position: 'absolute',
-        top: 90,
+        bottom: 20,
         left: 12,
         padding: '8px 12px',
         borderRadius: 8,

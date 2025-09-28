@@ -1,5 +1,7 @@
 @import 'tailwindcss';
-@plugin "daisyui";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
 
 html,
 body,
@@ -75,4 +77,132 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* ================================
+   xeokit ContextMenu 樣式
+   ================================ */
+.xeokit-context-menu {
+  font-family: 'Roboto', sans-serif;
+  font-size: 15px;
+  display: none;
+  z-index: 300000;
+  background: rgba(255, 255, 255, 0.46);
+  border: 1px solid black;
+  border-radius: 6px;
+  padding: 0;
+  width: 200px;
+}
+
+.xeokit-context-menu ul {
+  list-style: none;
+  margin-left: 0;
+  padding: 0;
+}
+
+.xeokit-context-menu-item {
+  list-style-type: none;
+  padding: 4px 20px 4px 10px;
+  color: black;
+  background: rgba(255, 255, 255, 0.46);
+  cursor: pointer;
+  width: calc(100% - 30px);
+}
+
+.xeokit-context-menu-item:hover {
+  background: black;
+  color: white;
+  font-weight: normal;
+}
+
+.xeokit-context-menu .disabled {
+  display: inline-block;
+  color: gray;
+  cursor: default;
+  font-weight: normal;
+}
+
+.xeokit-context-menu .disabled:hover {
+  color: gray;
+  cursor: default;
+  background: #eee;
+  font-weight: normal;
+}
+
+.xeokit-context-menu-item-separator {
+  background: rgba(0, 0, 0, 1);
+  height: 1px;
+  width: 100%;
+}
+
+/* ================================
+   xeokit TreeView 節點樣式
+   ================================ */
+.select-none ul {
+  list-style: none;
+  padding-left: 1.75em;
+  pointer-events: none;
+}
+
+.select-none ul li {
+  position: relative;
+  width: 500px;
+  pointer-events: none;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  vertical-align: middle;
+}
+
+.select-none ul li a {
+  background-color: #eee;
+  border-radius: 50%;
+  color: #000;
+  display: inline-block;
+  height: 1.5em;
+  left: -2em;
+  position: absolute;
+  text-align: center;
+  text-decoration: none;
+  width: 1.5em;
+  pointer-events: all;
+}
+
+.select-none ul li a.plus {
+  background-color: #ded;
+  pointer-events: all;
+}
+
+.select-none ul li a.minus {
+  background-color: #eee;
+  pointer-events: all;
+}
+
+.select-none ul li a:active {
+  top: 1px;
+  pointer-events: all;
+}
+
+.select-none ul li span {
+  display: inline-block;
+  width: calc(100% - 50px);
+  padding-left: 2px;
+  pointer-events: all;
+  height: 23px;
+}
+
+.select-none ul li span:hover {
+  color: white;
+  cursor: pointer;
+  background: black;
+  padding-left: 2px;
+  pointer-events: all;
+}
+
+.select-none .highlighted-node {
+  border: black solid 1px;
+  background: yellow;
+  color: black;
+  padding-left: 1px;
+  padding-right: 5px;
+  pointer-events: all;
 }

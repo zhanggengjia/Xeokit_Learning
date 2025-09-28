@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Viewer, TreeViewPlugin } from '@xeokit/xeokit-sdk';
 import { useCanvasDPRSync } from '../hooks/useCanvasDPRSync';
-import { setupCamera } from '../utils/xeokit/setupCamera';
+import { setupCamera, type CameraOptions } from '../utils/xeokit/setupCamera';
+import { setupPivot } from '../utils/xeokit/setupPivot';
 import { setupNavCube } from '../utils/xeokit/setupNavCube';
 import { createGrid } from '../utils/xeokit/createGrid';
 import { loadXKT } from '../utils/xeokit/loadXKT';
@@ -11,6 +12,10 @@ import { loadXKT } from '../utils/xeokit/loadXKT';
 type TreeViewStoreysProps = {
   /** xkt 檔案位置 */
   src: string;
+  /** 相機參數 */
+  camera?: CameraOptions;
+  /** 開啟grid */
+  grid?: { size?: number; divisions?: number; y?: number } | false;
   /** NavCube 是否顯示 */
   navCube?: boolean;
   /** 左側樹狀容器寬度 (px) */
@@ -23,6 +28,14 @@ type TreeViewStoreysProps = {
 
 export default function TreeViewStoreys({
   src,
+  camera = {
+    eye: [-8.23, 10.67, 35.26],
+    look: [4.39, 3.72, 8.89],
+    up: [0.1, 0.97, -0.2],
+    navMode: 'orbit',
+    followPointer: true,
+  },
+  grid = { size: 300, divisions: 60, y: -1.6 },
   navCube = true,
   treeWidth = 350,
   autoExpandDepth = 1,
@@ -58,15 +71,8 @@ export default function TreeViewStoreys({
     viewerRef.current = viewer;
 
     // 相機與控制（對齊官方示例的感覺）
-    setupCamera(viewer, {
-      eye: [-2.56, 8.38, 8.27],
-      look: [13.44, 3.31, -14.83],
-      up: [0.1, 0.98, -0.14],
-      navMode: 'orbit',
-      followPointer: true,
-    });
-    viewer.cameraFlight.duration = 1.0;
-    (viewer.cameraFlight as any).fitFOV = 25;
+    setupCamera(viewer, camera);
+    const disposePivot = setupPivot(viewer);
 
     // 調整 xray & highlight（可視需要保留）
     viewer.scene.xrayMaterial.fillAlpha = 0.1;
@@ -90,7 +96,9 @@ export default function TreeViewStoreys({
         : undefined;
 
     // 地面格線（可選）
-    const gridMesh = createGrid(viewer, { size: 300, divisions: 60, y: -1.6 });
+    const gridMesh = grid
+      ? createGrid(viewer, { size: 300, divisions: 60, y: -1.6 })
+      : undefined;
 
     // TreeViewPlugin（樓層 storeys）
     let treeView: TreeViewPlugin | null = null;
@@ -98,7 +106,7 @@ export default function TreeViewStoreys({
       treeView = new TreeViewPlugin(viewer, {
         containerElement: treeContainerRef.current,
         autoExpandDepth,
-        hierarchy: 'storeys',
+        hierarchy: 'containment',
         sortNodes: true,
       });
       treeViewRef.current = treeView;
@@ -174,20 +182,13 @@ export default function TreeViewStoreys({
       }
 
       // ✅ 2) 再拆模型
-      try {
-        disposeModel?.();
-      } catch {}
+      disposeModel?.();
       sceneModelRef.current = null;
-
       // 其餘資源照舊
-      try {
-        gridMesh?.destroy?.();
-      } catch {}
-      try {
-        disposeNavCube?.();
-      } catch {}
+      gridMesh?.destroy?.();
+      disposeNavCube?.();
+      disposePivot?.();
       viewer.destroy?.();
-
       viewerRef.current = null;
     };
   }, [src]);
@@ -226,31 +227,16 @@ export default function TreeViewStoreys({
       {/* 左側 TreeView 容器 */}
       <div
         ref={treeContainerRef}
-        style={{
-          pointerEvents: 'all',
-          height: '80%',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          position: 'absolute',
-          backgroundColor: 'rgba(255,255,255,0.2)',
-          color: 'black',
-          top: 80,
-          zIndex: 200000,
-          left: 0,
-          paddingLeft: 10,
-          fontFamily: 'Roboto, sans-serif',
-          fontSize: 15,
-          userSelect: 'none',
-          width: treeWidth,
-        }}
+        className="pt-2 pointer-events-auto h-[80%] overflow-y-auto overflow-x-hidden absolute bg-white/20 text-black top-25 left-10 z-[200000] pl-[10px] font-roboto text-[15px] select-none tree-container"
+        style={{ width: treeWidth }}
       />
 
-      {/* 右側/或任何位置顯示 loading info（你也可放在自家 UI） */}
+      {/* 右側/或任何位置顯示 loading info */}
       <div
         style={{
           position: 'absolute',
           bottom: 12,
-          left: treeWidth + 16,
+          right: 16,
           padding: '6px 10px',
           background: 'rgba(255,255,255,0.8)',
           borderRadius: 6,

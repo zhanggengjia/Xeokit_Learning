@@ -1,5 +1,6 @@
 import { BsBuildings } from 'react-icons/bs';
 import { CiSettings } from 'react-icons/ci';
+import { FaBarsStaggered } from 'react-icons/fa6';
 
 type NavbarProps = {
   items: { label: string; format: 'ifc' | 'xkt' }[];
@@ -38,7 +39,7 @@ const Navbar = ({
               className="btn btn-ghost lg:hidden"
               aria-label="open menu"
             >
-              <BsBuildings className="h-6 w-6" />
+              <FaBarsStaggered className="h-6 w-6" />
             </label>
             <ul
               tabIndex={0}
@@ -48,10 +49,10 @@ const Navbar = ({
               {items.map(({ label, format }, idx) => {
                 if (format == modelFormat) {
                   return (
-                    <li key={label}>
+                    <li key={label} className="my-1">
                       <button
                         type="button"
-                        className={idx === current ? 'active' : ''}
+                        className={idx === current ? 'active bg-gray-500!' : ''}
                         onClick={() => onSelect(idx)}
                         aria-current={idx === current ? 'page' : undefined}
                         role="menuitem"
@@ -72,10 +73,12 @@ const Navbar = ({
             {items.map(({ label, format }, idx) => {
               if (format == modelFormat) {
                 return (
-                  <li key={label}>
+                  <li key={label} className="my-1">
                     <button
                       type="button"
-                      className={idx === current ? 'active mx-1' : 'mx-1'}
+                      className={
+                        idx === current ? 'active mx-1 bg-gray-500!' : 'mx-1'
+                      }
                       onClick={() => onSelect(idx)}
                       aria-current={idx === current ? 'page' : undefined}
                     >
@@ -109,8 +112,9 @@ const Navbar = ({
               className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-200 rounded-box w-20"
               role="menu"
             >
-              <li>
+              <li className="my-1">
                 <button
+                  className={modelFormat === 'ifc' ? 'active bg-gray-500!' : ''}
                   type="button"
                   onClick={() => {
                     setModelFormat('ifc');
@@ -120,8 +124,9 @@ const Navbar = ({
                   ifc
                 </button>
               </li>
-              <li>
+              <li className="my-1">
                 <button
+                  className={modelFormat === 'xkt' ? 'active bg-gray-500!' : ''}
                   type="button"
                   onClick={() => {
                     setModelFormat('xkt');
@@ -149,10 +154,12 @@ const Navbar = ({
               {modelItems.map(({ label, format }, idx) => {
                 if (format == modelFormat) {
                   return (
-                    <li key={label}>
+                    <li key={label} className="my-1">
                       <button
                         type="button"
-                        className={idx === modelCurrent ? 'active' : ''}
+                        className={
+                          idx === modelCurrent ? 'active bg-gray-500!' : ''
+                        }
                         onClick={() => selectModel(idx)}
                         aria-current={idx === modelCurrent ? 'page' : undefined}
                         role="menuitem"

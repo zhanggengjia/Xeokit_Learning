@@ -4,8 +4,8 @@ import { pages, ifcModels } from './data';
 
 export default function App() {
   // 目前被選擇的頁籤
-  const [compId, setCompId] = useState<number>(0);
-  const [modelId, setModelId] = useState<number>(0);
+  const [compId, setCompId] = useState<number>(6);
+  const [modelId, setModelId] = useState<number>(3);
   const [modelFormat, setModelFormat] = useState<'ifc' | 'xkt'>('xkt');
 
   let srcPath = ifcModels[modelId].path;
@@ -19,8 +19,10 @@ export default function App() {
     srcPath = '/models/xkt/Duplex_A_20110505.glTFEmbedded.xkt';
   }
 
+  const fileName = srcPath.split('/').pop();
+
   return (
-    <div className="[scrollbar-gutter:stable] overflow-x-hidden h-full mx-2">
+    <div className=" overflow-x-hidden h-full  bg-black">
       <Navbar
         items={pages.map((p) => ({ label: p.label, format: p.format }))}
         current={compId}
@@ -34,8 +36,8 @@ export default function App() {
         modelFormat={modelFormat}
         setModelFormat={setModelFormat}
       />
-      <div className="flex justify-end">
-        <h4>{srcPath}</h4>
+      <div className="flex justify-end mx-3">
+        <h4 className="text-white">{fileName}</h4>
       </div>
       <main className="pt-3 mx-auto max-w-6xl xl:max-w-7xl px-8 h-[80%] flex justify-center items-stretch">
         {(() => {
