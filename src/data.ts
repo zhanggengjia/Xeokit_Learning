@@ -25,7 +25,7 @@ export const pages: pageType[] = [
   { label: 'IFCSelect', element: IFCSelect, format: 'ifc' },
   // { label: 'LoadXKT2', element: LoadXKT2, format: 'xkt' },
   { label: 'XktModelViewer', element: XktModelViewer, format: 'xkt' },
-  { label: 'TreeViewStoreys', element: TreeViewStoreys, format: 'xkt' },
+  // { label: 'TreeViewStoreys', element: TreeViewStoreys, format: 'xkt' },
   { label: 'ContextMenuTreeView', element: ContextMenuTreeView, format: 'xkt' },
 ];
 
