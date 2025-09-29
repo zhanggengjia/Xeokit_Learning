@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Viewer } from '../dist/xeokit-sdk.min.es.js';
 import { useCanvasDPRSync } from '../hooks/useCanvasDPRSync';
 import { setupCamera, type CameraOptions } from '../utils/xeokit/setupCamera';
 import { createGrid } from '../utils/xeokit/createGrid';
@@ -31,7 +30,7 @@ export default function XktModelViewer({
 }: XeokitViewerProps) {
   const sceneCanvasRef = useRef<HTMLCanvasElement>(null);
   const navCanvasRef = useRef<HTMLCanvasElement>(null);
-  const viewerRef = useRef<Viewer | null>(null);
+  const viewerRef = useRef<any | null>(null);
   const sceneModelRef = useRef<any | null>(null);
 
   // 解析度同步
@@ -39,43 +38,66 @@ export default function XktModelViewer({
   useCanvasDPRSync(navCanvasRef, () => viewerRef.current?.scene.render());
 
   useEffect(() => {
-    if (!sceneCanvasRef.current) return;
+    let disposeModel: (() => void) | undefined;
+    let disposePivot: (() => void) | undefined;
+    let disposeNavCube: (() => void) | undefined;
+    let gridMesh: any | undefined;
 
-    const viewer = new Viewer({
-      canvasElement: sceneCanvasRef.current,
-      transparent: true,
-      readableGeometryEnabled: true,
-    });
-    viewerRef.current = viewer;
+    (async () => {
+      if (!sceneCanvasRef.current) return;
 
-    // 相機 / Pivot
-    setupCamera(viewer, camera);
-    const disposePivot = setupPivot(viewer);
+      // 用專案 base 組成絕對 URL，避免相對路徑在 Netlify 出錯
+      const url = new URL(
+        `${import.meta.env.BASE_URL}lib/xeokit-sdk.min.es.js`,
+        window.location.origin
+      ).toString();
+      // 告訴 Vite 不要分析這個 import（否則它會報你現在那個錯）
+      const mod = await import(/* @vite-ignore */ url);
 
-    // NavCube
-    const disposeNavCube =
-      navCube && navCanvasRef.current
-        ? setupNavCube(viewer, navCanvasRef.current)
-        : undefined;
+      const { Viewer } = mod as any;
 
-    // Grid
-    const gridMesh = grid ? createGrid(viewer, grid) : undefined;
+      const viewer = new Viewer({
+        canvasElement: sceneCanvasRef.current,
+        transparent: true,
+        readableGeometryEnabled: true, // 你需要的屬性
+      });
+      viewerRef.current = viewer;
 
-    // 載入 XKT
-    const { sceneModel, dispose: disposeModel } = loadXKT(viewer, {
-      src,
-      withSectionPlane: false, // ← 關掉，避免跟按鈕邏輯衝突
-    });
-    sceneModelRef.current = sceneModel;
+      // 相機 / Pivot
+      setupCamera(viewer, camera);
+      disposePivot = setupPivot(viewer);
+
+      // NavCube
+      if (navCube && navCanvasRef.current) {
+        disposeNavCube = setupNavCube(viewer, navCanvasRef.current);
+      }
+
+      // Grid
+      if (grid) {
+        gridMesh = createGrid(viewer, grid);
+      }
+
+      // 載入 XKT
+      const loaded = loadXKT(viewer, {
+        src,
+        withSectionPlane: false, // 關掉，避免和按鈕邏輯衝突
+      });
+      sceneModelRef.current = loaded.sceneModel;
+      disposeModel = loaded.dispose;
+    })();
 
     return () => {
-      disposeModel?.();
-      gridMesh?.destroy?.();
-      disposeNavCube?.();
-      disposePivot?.();
-      viewer.destroy?.();
-      viewerRef.current = null;
-      sceneModelRef.current = null;
+      canceled = true;
+      try {
+        disposeModel?.();
+        gridMesh?.destroy?.();
+        disposeNavCube?.();
+        disposePivot?.();
+        viewerRef.current?.destroy?.();
+      } finally {
+        viewerRef.current = null;
+        sceneModelRef.current = null;
+      }
     };
   }, [src, camera, grid, navCube]);
 
