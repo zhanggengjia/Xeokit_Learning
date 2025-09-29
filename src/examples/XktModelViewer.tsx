@@ -87,7 +87,6 @@ export default function XktModelViewer({
     })();
 
     return () => {
-      canceled = true;
       try {
         disposeModel?.();
         gridMesh?.destroy?.();
