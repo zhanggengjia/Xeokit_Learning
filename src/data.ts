@@ -8,6 +8,7 @@ import LoadIFC2 from './examples/LoadIFC2';
 import XktModelViewer from './examples/XktModelViewer';
 import TreeViewStoreys from './examples/TreeViewStoreys';
 import ContextMenuTreeView from './examples/ContextMenuTreeView';
+import CMTVPractice from './examples/ContextMenuTreeViewPractice';
 // import LoadLargeIFC from './examples/LoadLargeIFC';
 
 type pageType = {
@@ -27,6 +28,7 @@ export const pages: pageType[] = [
   { label: 'XktModelViewer', element: XktModelViewer, format: 'xkt' },
   // { label: 'TreeViewStoreys', element: TreeViewStoreys, format: 'xkt' },
   { label: 'ContextMenuTreeView', element: ContextMenuTreeView, format: 'xkt' },
+  { label: 'CMTVPractice', element: CMTVPractice, format: 'xkt' },
 ];
 
 type ifcModel = {

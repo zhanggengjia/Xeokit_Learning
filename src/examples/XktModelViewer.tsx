@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Viewer } from '@xeokit/xeokit-sdk';
+import { Viewer } from '../dist/xeokit-sdk.min.es.js';
 import { useCanvasDPRSync } from '../hooks/useCanvasDPRSync';
 import { setupCamera, type CameraOptions } from '../utils/xeokit/setupCamera';
 import { createGrid } from '../utils/xeokit/createGrid';
@@ -44,7 +44,7 @@ export default function XktModelViewer({
     const viewer = new Viewer({
       canvasElement: sceneCanvasRef.current,
       transparent: true,
-      // readableGeometryEnabled: true,
+      readableGeometryEnabled: true,
     });
     viewerRef.current = viewer;
 
@@ -102,7 +102,7 @@ export default function XktModelViewer({
           }}
         />
       )}
-      {/* 🔻 新增：可重用的 Section Plane 切換元件 */}
+
       <SectionPlaneToggle
         key={src}
         viewerRef={viewerRef}
@@ -116,7 +116,8 @@ export default function XktModelViewer({
           dir: [1, 0, 0],
           showControl: true,
         }}
-        capColor={[0.9, 0.2, 0.2]} // 可選：截面填色
+        capColor={[0.3, 0.3, 0.3]} // 可選：截面填色
+        className="text-black"
         // 也可自訂 className / style / labels
         // className="btn btn-outline"
         // labels={{ on: "關閉切面", off: "開啟切面" }}

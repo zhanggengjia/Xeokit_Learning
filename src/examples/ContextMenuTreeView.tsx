@@ -7,6 +7,7 @@ import { setupPivot } from '../utils/xeokit/setupPivot';
 import { setupNavCube } from '../utils/xeokit/setupNavCube';
 import { createGrid } from '../utils/xeokit/createGrid';
 import { loadXKT } from '../utils/xeokit/loadXKT';
+import { setupHighlightAndSelectMaterials } from '../utils/xeokit/setupMaterials';
 
 type Props = {
   src: string;
@@ -40,9 +41,14 @@ export default function ContextMenuTreeView({
   const navCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
 
+  // 多個 effect / 回呼要跨生命週期 → 建議保留 viewerRef。
   const viewerRef = useRef<Viewer | null>(null);
   const treeViewRef = useRef<TreeViewPlugin | null>(null);
   const [info, setInfo] = useState('Loading JavaScript modules...');
+  const [infoType, setInfoType] = useState<
+    'containment' | 'storeys' | 'types' | undefined
+  >('containment');
+  const infoTypeArray = ['containment', 'storeys', 'types'];
 
   useCanvasDPRSync(sceneCanvasRef, () => viewerRef.current?.scene.render());
   useCanvasDPRSync(navCanvasRef, () => viewerRef.current?.scene.render());
@@ -63,17 +69,7 @@ export default function ContextMenuTreeView({
     const disposePivot = setupPivot(viewer);
 
     // 材質（依原 HTML 調整 highlight/selected）
-    viewer.scene.highlightMaterial.fill = true;
-    viewer.scene.highlightMaterial.edges = true;
-    viewer.scene.highlightMaterial.fillAlpha = 0.1;
-    viewer.scene.highlightMaterial.edgeAlpha = 0.1;
-    viewer.scene.highlightMaterial.edgeColor = [1, 1, 0];
-
-    viewer.scene.selectedMaterial.fill = true;
-    viewer.scene.selectedMaterial.edges = true;
-    viewer.scene.selectedMaterial.fillAlpha = 0.5;
-    viewer.scene.selectedMaterial.edgeAlpha = 0.6;
-    viewer.scene.selectedMaterial.edgeColor = [0, 1, 1];
+    setupHighlightAndSelectMaterials(viewer);
 
     // NavCube
     const disposeNavCube =
@@ -95,7 +91,7 @@ export default function ContextMenuTreeView({
       treeView = new TreeViewPlugin(viewer, {
         containerElement: treeRef.current,
         autoExpandDepth,
-        hierarchy: 'containment',
+        hierarchy: infoType,
         sortNodes: true,
       });
       treeViewRef.current = treeView;
@@ -110,7 +106,18 @@ export default function ContextMenuTreeView({
     });
     sceneModel.on?.('loaded', () => {
       const t1 = performance.now();
-      setInfo(`Model loaded in ${Math.floor((t1 - t0) / 1000)} seconds`);
+      const anyModel = sceneModel as any;
+      const objectsCount =
+        anyModel?.numEntities ??
+        (anyModel?.entities
+          ? Object.keys(anyModel.entities).length
+          : undefined);
+
+      setInfo(
+        `Model loaded in ${Math.floor((t1 - t0) / 1000)} seconds` +
+          (objectsCount != null ? `\nObjects: ${objectsCount}` : '')
+      );
+
       viewer.cameraFlight?.flyTo(sceneModel);
       viewer.scene.render();
     });
@@ -655,8 +662,6 @@ export default function ContextMenuTreeView({
       try {
         canvasEl.removeEventListener('mousemove', onMouseMove);
         canvasEl.removeEventListener('mousemove', onMouseMove2);
-      } catch {}
-      try {
         canvasEl.removeEventListener('touchstart', onTouchStart);
         canvasEl.removeEventListener('touchmove', onTouchMove);
         canvasEl.removeEventListener('touchend', onTouchEnd);
@@ -677,7 +682,7 @@ export default function ContextMenuTreeView({
       viewerRef.current = null;
       treeViewRef.current = null;
     };
-  }, [src]);
+  }, [src, infoType]);
 
   return (
     <>
@@ -706,9 +711,28 @@ export default function ContextMenuTreeView({
       )}
 
       {/* Tree 容器（左側） */}
+      <div className="absolute top-23 left-10">
+        {infoTypeArray.map((item) => {
+          return (
+            <button
+              key={item}
+              className={
+                infoType === item ? `mx-1 p-1! bg-gray-500!` : `mx-1 p-1!`
+              }
+              onClick={() =>
+                setInfoType(
+                  item as 'containment' | 'storeys' | 'types' | undefined
+                )
+              }
+            >
+              {item}
+            </button>
+          );
+        })}
+      </div>
       <div
         ref={treeRef}
-        className="pt-2 pointer-events-auto h-[80%] overflow-y-auto  absolute bg-white/20 text-black top-25 z-[200000] left-10 pl-[10px] font-roboto text-[15px] select-none"
+        className="pt-2 pointer-events-auto h-[75%] overflow-y-auto absolute bg-white/20 text-black top-35 z-[200000] left-10 pl-[10px] font-roboto text-[15px] select-none"
         style={{ width: treeWidth }}
       />
 
