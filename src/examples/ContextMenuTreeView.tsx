@@ -19,6 +19,16 @@ type Props = {
   className?: string;
 };
 
+type DoorWindowInfo = {
+  id: string;
+  type: string; // e.g. "IfcWindow" or "IfcDoor"
+  name?: string;
+  globalId?: string;
+  overallWidthMM?: number;
+  overallHeightMM?: number;
+  aabbDimsMM?: { x: number; y: number; z: number }; // 從 AABB 推估
+};
+
 const LONGPRESS_MS = 500;
 const MOVE_TOL = 3;
 
@@ -52,6 +62,101 @@ export default function ContextMenuTreeView({
 
   useCanvasDPRSync(sceneCanvasRef, () => viewerRef.current?.scene.render());
   useCanvasDPRSync(navCanvasRef, () => viewerRef.current?.scene.render());
+
+  const [dwInfo, setDwInfo] = useState<DoorWindowInfo | null>(null);
+
+  // 取得某個 id 的 meta + 尺寸（門窗優先）
+  const extractDoorWindowInfo = (
+    viewer: any,
+    objectId: string
+  ): DoorWindowInfo | null => {
+    const meta = viewer.metaScene?.metaObjects?.[objectId];
+    const entity = viewer.scene?.objects?.[objectId];
+    if (!meta || !entity) return null;
+
+    const type = meta.type || '';
+    if (type !== 'IfcWindow' && type !== 'IfcDoor') return null;
+
+    // 嘗試從 meta 屬性拿 OverallWidth/OverallHeight（IFC 常見）
+    const props = (meta as any).properties || {};
+    const allPairs: Array<[string, any]> = Object.entries(props);
+
+    // 寬高鍵名的猜測（不同導出器命名可能不同，做幾組常見別名）
+    const widthKeys = [
+      'OverallWidth',
+      'Overall width',
+      'Width',
+      'Overall_Width',
+    ];
+    const heightKeys = [
+      'OverallHeight',
+      'Overall height',
+      'Height',
+      'Overall_Height',
+    ];
+
+    const findNumberByKeys = (keys: string[]) => {
+      let val: number | undefined;
+      for (const k of keys) {
+        const hit = allPairs.find(
+          ([kk]) => kk.toLowerCase() === k.toLowerCase()
+        );
+        if (hit) {
+          const num = Number(hit[1]);
+          if (!isNaN(num) && num > 0) {
+            val = num;
+            break;
+          }
+        }
+      }
+      return val;
+    };
+
+    let overallWidth = findNumberByKeys(widthKeys);
+    let overallHeight = findNumberByKeys(heightKeys);
+
+    // 單位假定：多數 IFC 導出為米或毫米；若值看起來像「< 20」可能是米，轉成毫米
+    const norm = (v?: number) =>
+      v == null ? undefined : v < 20 ? Math.round(v * 1000) : Math.round(v);
+
+    const overallWidthMM = norm(overallWidth);
+    const overallHeightMM = norm(overallHeight);
+
+    // AABB 估尺寸（mm）
+    const aabb = entity.aabb as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number
+    ];
+    const dx = Math.abs(aabb[3] - aabb[0]);
+    const dy = Math.abs(aabb[4] - aabb[1]);
+    const dz = Math.abs(aabb[5] - aabb[2]);
+    const aabbDimsMM = {
+      x: Math.round(dx * 1000),
+      y: Math.round(dy * 1000),
+      z: Math.round(dz * 1000),
+    };
+
+    return {
+      id: objectId,
+      type,
+      name: meta.name,
+      globalId: meta?.properties?.GlobalId ?? meta?.properties?.GlobalID,
+      overallWidthMM,
+      overallHeightMM,
+      aabbDimsMM,
+    };
+  };
+
+  // 顯示/清除 info 面板的兩個小工具
+  const showInfoFor = (viewer: any, objectId: string) => {
+    const info = extractDoorWindowInfo(viewer, objectId);
+    setDwInfo(info); // 不是門窗就會是 null → 自動關面板
+  };
+  const clearInfo = () => setDwInfo(null);
 
   useEffect(() => {
     if (!sceneCanvasRef.current) return;
@@ -302,6 +407,8 @@ export default function ContextMenuTreeView({
                 if (e) {
                   e.selected = true;
                   e.visible = true;
+                  // console.log(e);
+                  showInfoFor(ctx.viewer, n.objectId);
                 }
               });
             },
@@ -309,21 +416,30 @@ export default function ContextMenuTreeView({
           {
             title: 'Deselect',
             doAction: (ctx: any) => {
+              let deselectedTargetId: string | undefined;
               ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
                 if (!n.objectId) return;
                 const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) e.selected = false;
+                if (e) {
+                  e.selected = false;
+                  deselectedTargetId = n.objectId;
+                }
               });
+              if (dwInfo?.id && dwInfo.id === deselectedTargetId) {
+                clearInfo();
+              }
             },
           },
           {
             title: 'Clear Selection',
             getEnabled: (ctx: any) => ctx.viewer.scene.numSelectedObjects > 0,
-            doAction: (ctx: any) =>
+            doAction: (ctx: any) => {
               ctx.viewer.scene.setObjectsSelected(
                 ctx.viewer.scene.selectedObjectIds,
                 false
-              ),
+              );
+              clearInfo();
+            },
           },
         ],
       ],
@@ -520,21 +636,30 @@ export default function ContextMenuTreeView({
           {
             title: 'Select',
             getEnabled: (ctx: any) => !ctx.entity.selected,
-            doAction: (ctx: any) => (ctx.entity.selected = true),
+            doAction: (ctx: any) => {
+              ctx.entity.selected = true;
+              // console.log(ctx.entity);
+              showInfoFor(ctx.viewer, ctx.entity.id);
+            },
           },
           {
             title: 'Undo select',
             getEnabled: (ctx: any) => ctx.entity.selected,
-            doAction: (ctx: any) => (ctx.entity.selected = false),
+            doAction: (ctx: any) => {
+              ctx.entity.selected = false;
+              if (dwInfo?.id === ctx.entity.id) clearInfo();
+            },
           },
           {
             title: 'Clear Selection',
             getEnabled: (ctx: any) => ctx.viewer.scene.numSelectedObjects > 0,
-            doAction: (ctx: any) =>
+            doAction: (ctx: any) => {
               ctx.viewer.scene.setObjectsSelected(
                 ctx.viewer.scene.selectedObjectIds,
                 false
-              ),
+              );
+              clearInfo();
+            },
           },
         ],
       ],
@@ -753,7 +878,84 @@ export default function ContextMenuTreeView({
         {info}
       </div>
 
-      {/* 補 Tree/ContextMenu 必要樣式（從 HTML 摘要而來） */}
+      {/* 右側資訊面板（只在選中門窗時顯示） */}
+      {/* 右側資訊面板（只在選中門窗時顯示） */}
+      {dwInfo && (
+        <div
+          className="
+      absolute top-30 right-5 w-72
+      bg-white/60  rounded-xl
+      p-4 z-[200010] shadow-lg
+      text-sm leading-relaxed text-black
+    "
+        >
+          {/* 標題 */}
+          <div className="font-bold mb-2">
+            {dwInfo.type.replace(/^Ifc/, '')} Info
+          </div>
+
+          {/* 基本屬性 */}
+          <div>
+            <span className="font-semibold">ID:</span> {dwInfo.id}
+          </div>
+          {dwInfo.globalId && (
+            <div>
+              <span className="font-semibold">GlobalId:</span> {dwInfo.globalId}
+            </div>
+          )}
+          {dwInfo.name && (
+            <div>
+              <span className="font-semibold">Name:</span> {dwInfo.name}
+            </div>
+          )}
+
+          {/* IFC 尺寸 */}
+          {(dwInfo.overallWidthMM || dwInfo.overallHeightMM) && (
+            <>
+              <hr className="my-2 border-gray-300" />
+              <div className="font-semibold mb-1">IFC Size</div>
+              {dwInfo.overallWidthMM && (
+                <div>Width: {dwInfo.overallWidthMM} mm</div>
+              )}
+              {dwInfo.overallHeightMM && (
+                <div>Height: {dwInfo.overallHeightMM} mm</div>
+              )}
+            </>
+          )}
+
+          {/* AABB 尺寸 */}
+          {dwInfo.aabbDimsMM && (
+            <>
+              <hr className="my-2 border-gray-300" />
+              <div className="font-semibold mb-1">AABB (approx.)</div>
+              <div>
+                LxWxH ≈ {dwInfo.aabbDimsMM.x} × {dwInfo.aabbDimsMM.y} ×{' '}
+                {dwInfo.aabbDimsMM.z} mm
+              </div>
+            </>
+          )}
+
+          {/* 關閉按鈕 */}
+          <div className="mt-3 text-right">
+            {/* 關閉按鈕 (右上角 X) */}
+            <button
+              onClick={() => clearInfo()}
+              className="
+      absolute top-2 right-2
+      w-7 h-7 flex items-center justify-center
+      rounded-full border border-gray-300
+      bg-gray-100! hover:bg-gray-200!
+      text-gray-600! hover:text-gray-800!
+      text-lg
+      cursor-pointer
+      transition
+  "
+            >
+              x
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
