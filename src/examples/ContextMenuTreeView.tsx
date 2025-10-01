@@ -1,13 +1,26 @@
 // components/xeokit/ContextMenuTreeView.tsx
 import { useEffect, useRef, useState } from 'react';
-import { Viewer, TreeViewPlugin, ContextMenu } from '@xeokit/xeokit-sdk';
+import type { Viewer } from '@xeokit/xeokit-sdk';
+import { Viewer as XeokitViewer, TreeViewPlugin } from '@xeokit/xeokit-sdk';
+
+import InfoPanel from '../components/InfoPanel';
+import {
+  extractDoorWindowInfo,
+  type DoorWindowInfo,
+} from '../utils/xeokit/extractDoorWindowInfo';
+import {
+  createDefaultTreeMenu,
+  createDefaultCanvasMenu,
+  createDefaultObjectMenu,
+  type MenuBuilder,
+} from '../utils/xeokit/menus';
+
 import { useCanvasDPRSync } from '../hooks/useCanvasDPRSync';
 import { setupCamera, type CameraOptions } from '../utils/xeokit/setupCamera';
 import { setupPivot } from '../utils/xeokit/setupPivot';
 import { setupNavCube } from '../utils/xeokit/setupNavCube';
 import { createGrid } from '../utils/xeokit/createGrid';
 import { loadXKT } from '../utils/xeokit/loadXKT';
-import { setupHighlightAndSelectMaterials } from '../utils/xeokit/setupMaterials';
 
 type Props = {
   src: string;
@@ -17,20 +30,18 @@ type Props = {
   treeWidth?: number;
   autoExpandDepth?: number;
   className?: string;
-};
-
-type DoorWindowInfo = {
-  id: string;
-  type: string; // e.g. "IfcWindow" or "IfcDoor"
-  name?: string;
-  globalId?: string;
-  overallWidthMM?: number;
-  overallHeightMM?: number;
-  aabbDimsMM?: { x: number; y: number; z: number }; // 從 AABB 推估
+  /**
+   * 可外部注入選單建構器；未提供時使用預設選單
+   */
+  menuBuilders?: {
+    tree?: MenuBuilder;
+    canvas?: MenuBuilder;
+    object?: MenuBuilder;
+  };
 };
 
 const LONGPRESS_MS = 500;
-const MOVE_TOL = 3;
+const MOVE_TOL = 3; // px
 
 export default function ContextMenuTreeView({
   src,
@@ -43,140 +54,67 @@ export default function ContextMenuTreeView({
   },
   grid = { size: 300, divisions: 60, y: -1.6 },
   navCube = true,
-  treeWidth = 350,
+  treeWidth = 340,
   autoExpandDepth = 3,
   className,
+  menuBuilders,
 }: Props) {
   const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const navCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
 
-  // 多個 effect / 回呼要跨生命週期 → 建議保留 viewerRef。
   const viewerRef = useRef<Viewer | null>(null);
   const treeViewRef = useRef<TreeViewPlugin | null>(null);
-  const [info, setInfo] = useState('Loading JavaScript modules...');
+
+  const [info, setInfo] = useState('Loading...');
+  const [dwInfo, setDwInfo] = useState<DoorWindowInfo | null>(null);
+
   const [infoType, setInfoType] = useState<
     'containment' | 'storeys' | 'types' | undefined
   >('containment');
   const infoTypeArray = ['containment', 'storeys', 'types'];
 
-  useCanvasDPRSync(sceneCanvasRef, () => viewerRef.current?.scene.render());
-  useCanvasDPRSync(navCanvasRef, () => viewerRef.current?.scene.render());
-
-  const [dwInfo, setDwInfo] = useState<DoorWindowInfo | null>(null);
-
-  // 取得某個 id 的 meta + 尺寸（門窗優先）
-  const extractDoorWindowInfo = (
-    viewer: any,
-    objectId: string
-  ): DoorWindowInfo | null => {
-    const meta = viewer.metaScene?.metaObjects?.[objectId];
-    const entity = viewer.scene?.objects?.[objectId];
-    if (!meta || !entity) return null;
-
-    const type = meta.type || '';
-    if (type !== 'IfcWindow' && type !== 'IfcDoor') return null;
-
-    // 嘗試從 meta 屬性拿 OverallWidth/OverallHeight（IFC 常見）
-    const props = (meta as any).properties || {};
-    const allPairs: Array<[string, any]> = Object.entries(props);
-
-    // 寬高鍵名的猜測（不同導出器命名可能不同，做幾組常見別名）
-    const widthKeys = [
-      'OverallWidth',
-      'Overall width',
-      'Width',
-      'Overall_Width',
-    ];
-    const heightKeys = [
-      'OverallHeight',
-      'Overall height',
-      'Height',
-      'Overall_Height',
-    ];
-
-    const findNumberByKeys = (keys: string[]) => {
-      let val: number | undefined;
-      for (const k of keys) {
-        const hit = allPairs.find(
-          ([kk]) => kk.toLowerCase() === k.toLowerCase()
-        );
-        if (hit) {
-          const num = Number(hit[1]);
-          if (!isNaN(num) && num > 0) {
-            val = num;
-            break;
-          }
-        }
-      }
-      return val;
-    };
-
-    let overallWidth = findNumberByKeys(widthKeys);
-    let overallHeight = findNumberByKeys(heightKeys);
-
-    // 單位假定：多數 IFC 導出為米或毫米；若值看起來像「< 20」可能是米，轉成毫米
-    const norm = (v?: number) =>
-      v == null ? undefined : v < 20 ? Math.round(v * 1000) : Math.round(v);
-
-    const overallWidthMM = norm(overallWidth);
-    const overallHeightMM = norm(overallHeight);
-
-    // AABB 估尺寸（mm）
-    const aabb = entity.aabb as [
-      number,
-      number,
-      number,
-      number,
-      number,
-      number
-    ];
-    const dx = Math.abs(aabb[3] - aabb[0]);
-    const dy = Math.abs(aabb[4] - aabb[1]);
-    const dz = Math.abs(aabb[5] - aabb[2]);
-    const aabbDimsMM = {
-      x: Math.round(dx * 1000),
-      y: Math.round(dy * 1000),
-      z: Math.round(dz * 1000),
-    };
-
-    return {
-      id: objectId,
-      type,
-      name: meta.name,
-      globalId: meta?.properties?.GlobalId ?? meta?.properties?.GlobalID,
-      overallWidthMM,
-      overallHeightMM,
-      aabbDimsMM,
-    };
-  };
-
-  // 顯示/清除 info 面板的兩個小工具
-  const showInfoFor = (viewer: any, objectId: string) => {
-    const info = extractDoorWindowInfo(viewer, objectId);
-    setDwInfo(info); // 不是門窗就會是 null → 自動關面板
+  const showInfoFor = (id: string) => {
+    const v = viewerRef.current;
+    if (!v) return;
+    const data = extractDoorWindowInfo(v as any, id);
+    setDwInfo(data); // 非門窗 → null → 不顯示
   };
   const clearInfo = () => setDwInfo(null);
+
+  // DPR 同步（Retina 清晰）
+  useCanvasDPRSync(sceneCanvasRef, () => viewerRef.current?.scene.render());
+  useCanvasDPRSync(navCanvasRef, () => viewerRef.current?.scene.render());
 
   useEffect(() => {
     if (!sceneCanvasRef.current) return;
 
-    // 1) Viewer 初始化
-    const viewer = new Viewer({
+    // 1) Viewer
+    const viewer = new XeokitViewer({
       canvasElement: sceneCanvasRef.current,
       transparent: true,
     });
     viewerRef.current = viewer;
 
-    // 相機/控制
+    // 2) Camera / Pivot
     setupCamera(viewer, camera);
-    viewer.cameraControl.followPointer = true; // 同原 HTML
+    viewer.cameraControl.followPointer = true;
     const disposePivot = setupPivot(viewer);
 
-    // 材質（依原 HTML 調整 highlight/selected）
-    setupHighlightAndSelectMaterials(viewer);
+    // 3) Highlight/Selected 材質（可抽 utils；此處簡寫）
+    viewer.scene.highlightMaterial.fill = true;
+    viewer.scene.highlightMaterial.edges = true;
+    viewer.scene.highlightMaterial.fillAlpha = 0.1;
+    viewer.scene.highlightMaterial.edgeAlpha = 0.1;
+    viewer.scene.highlightMaterial.edgeColor = [1, 1, 0];
 
-    // NavCube
+    viewer.scene.selectedMaterial.fill = true;
+    viewer.scene.selectedMaterial.edges = true;
+    viewer.scene.selectedMaterial.fillAlpha = 0.5;
+    viewer.scene.selectedMaterial.edgeAlpha = 0.6;
+    viewer.scene.selectedMaterial.edgeColor = [0, 1, 1];
+
+    // 4) NavCube / Grid
     const disposeNavCube =
       navCube && navCanvasRef.current
         ? setupNavCube(viewer, navCanvasRef.current, {
@@ -187,10 +125,9 @@ export default function ContextMenuTreeView({
           })
         : undefined;
 
-    // Grid
     const gridMesh = grid ? createGrid(viewer, grid) : undefined;
 
-    // 2) TreeView
+    // 5) TreeView
     let treeView: TreeViewPlugin | null = null;
     if (treeRef.current) {
       treeView = new TreeViewPlugin(viewer, {
@@ -200,9 +137,32 @@ export default function ContextMenuTreeView({
         sortNodes: true,
       });
       treeViewRef.current = treeView;
+
+      // 節點左鍵：隔離 + 飛入（保留原有習慣）
+      treeView.on('nodeTitleClicked', (e: any) => {
+        const scene = viewer.scene;
+        const objectIds: string[] = [];
+        e.treeViewPlugin.withNodeTree(e.treeViewNode, (n: any) => {
+          if (n.objectId) objectIds.push(n.objectId);
+        });
+
+        e.treeViewPlugin.unShowNode();
+        scene.setObjectsXRayed(scene.objectIds, true);
+        scene.setObjectsVisible(scene.objectIds, true);
+        scene.setObjectsXRayed(objectIds, false);
+
+        viewer.cameraFlight.flyTo(
+          { aabb: scene.getAABB(objectIds), duration: 0.5 },
+          () =>
+            setTimeout(() => {
+              scene.setObjectsVisible(scene.xrayedObjectIds, false);
+              scene.setObjectsXRayed(scene.xrayedObjectIds, false);
+            }, 500)
+        );
+      });
     }
 
-    // 3) 載入 XKT
+    // 6) 載入 XKT
     const t0 = performance.now();
     setInfo('Loading model...');
     const { sceneModel, dispose: disposeModel } = loadXKT(viewer, {
@@ -211,472 +171,36 @@ export default function ContextMenuTreeView({
     });
     sceneModel.on?.('loaded', () => {
       const t1 = performance.now();
-      const anyModel = sceneModel as any;
-      const objectsCount =
-        anyModel?.numEntities ??
-        (anyModel?.entities
-          ? Object.keys(anyModel.entities).length
-          : undefined);
-
-      setInfo(
-        `Model loaded in ${Math.floor((t1 - t0) / 1000)} seconds` +
-          (objectsCount != null ? `\nObjects: ${objectsCount}` : '')
-      );
-
+      setInfo(`Model loaded in ${Math.floor((t1 - t0) / 1000)}s`);
       viewer.cameraFlight?.flyTo(sceneModel);
       viewer.scene.render();
     });
 
-    // 4) Context Menus（Tree、Canvas、Object）
-    // 4-1 TreeView 選單（原 HTML 的群組與動作）
-    const treeMenu = new ContextMenu({
-      items: [
-        [
-          {
-            title: 'View Fit',
-            doAction: (ctx: any) => {
-              const scene = ctx.viewer.scene;
-              const objectIds: string[] = [];
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (node: any) => {
-                if (node.objectId) objectIds.push(node.objectId);
-              });
-              scene.setObjectsVisible(objectIds, true);
-              scene.setObjectsHighlighted(objectIds, true);
-              ctx.viewer.cameraFlight.flyTo(
-                {
-                  projection: 'perspective',
-                  aabb: scene.getAABB(objectIds),
-                  duration: 0.5,
-                },
-                () =>
-                  setTimeout(
-                    () =>
-                      scene.setObjectsHighlighted(
-                        scene.highlightedObjectIds,
-                        false
-                      ),
-                    500
-                  )
-              );
-            },
-          },
-          {
-            title: 'View Fit All',
-            doAction: (ctx: any) =>
-              ctx.viewer.cameraFlight.flyTo({
-                projection: 'perspective',
-                aabb: ctx.viewer.scene.getAABB(),
-                duration: 0.5,
-              }),
-          },
-        ],
-        [
-          {
-            title: 'Hide',
-            doAction: (ctx: any) => {
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) e.visible = false;
-              });
-            },
-          },
-          {
-            title: 'Hide Others',
-            doAction: (ctx: any) => {
-              const s = ctx.viewer.scene;
-              s.setObjectsVisible(s.visibleObjectIds, false);
-              s.setObjectsXRayed(s.xrayedObjectIds, false);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-              s.setObjectsHighlighted(s.highlightedObjectIds, false);
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = s.objects[n.objectId];
-                if (e) e.visible = true;
-              });
-            },
-          },
-          {
-            title: 'Hide All',
-            getEnabled: (ctx: any) =>
-              ctx.viewer.scene.visibleObjectIds.length > 0,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsVisible(
-                ctx.viewer.scene.visibleObjectIds,
-                false
-              ),
-          },
-        ],
-        [
-          {
-            title: 'Show',
-            doAction: (ctx: any) => {
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) {
-                  e.visible = true;
-                  e.xrayed = false;
-                  e.selected = false;
-                }
-              });
-            },
-          },
-          {
-            title: 'Show Others',
-            doAction: (ctx: any) => {
-              const s = ctx.viewer.scene;
-              s.setObjectsVisible(s.objectIds, true);
-              s.setObjectsXRayed(s.xrayedObjectIds, false);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = s.objects[n.objectId];
-                if (e) e.visible = false;
-              });
-            },
-          },
-          {
-            title: 'Show All',
-            getEnabled: (ctx: any) =>
-              ctx.viewer.scene.numVisibleObjects < ctx.viewer.scene.numObjects,
-            doAction: (ctx: any) => {
-              const s = ctx.viewer.scene;
-              s.setObjectsVisible(s.objectIds, true);
-              s.setObjectsXRayed(s.xrayedObjectIds, false);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-            },
-          },
-        ],
-        [
-          {
-            title: 'X-Ray',
-            doAction: (ctx: any) => {
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) {
-                  e.xrayed = true;
-                  e.visible = true;
-                }
-              });
-            },
-          },
-          {
-            title: 'Undo X-Ray',
-            doAction: (ctx: any) => {
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) e.xrayed = false;
-              });
-            },
-          },
-          {
-            title: 'X-Ray Others',
-            doAction: (ctx: any) => {
-              const s = ctx.viewer.scene;
-              s.setObjectsVisible(s.objectIds, true);
-              s.setObjectsXRayed(s.objectIds, true);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-              s.setObjectsHighlighted(s.highlightedObjectIds, false);
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = s.objects[n.objectId];
-                if (e) e.xrayed = false;
-              });
-            },
-          },
-          {
-            title: 'Reset X-Ray',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numXRayedObjects > 0,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsXRayed(
-                ctx.viewer.scene.xrayedObjectIds,
-                false
-              ),
-          },
-        ],
-        [
-          {
-            title: 'Select',
-            doAction: (ctx: any) => {
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) {
-                  e.selected = true;
-                  e.visible = true;
-                  // console.log(e);
-                  showInfoFor(ctx.viewer, n.objectId);
-                }
-              });
-            },
-          },
-          {
-            title: 'Deselect',
-            doAction: (ctx: any) => {
-              let deselectedTargetId: string | undefined;
-              ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
-                if (!n.objectId) return;
-                const e = ctx.viewer.scene.objects[n.objectId];
-                if (e) {
-                  e.selected = false;
-                  deselectedTargetId = n.objectId;
-                }
-              });
-              if (dwInfo?.id && dwInfo.id === deselectedTargetId) {
-                clearInfo();
-              }
-            },
-          },
-          {
-            title: 'Clear Selection',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numSelectedObjects > 0,
-            doAction: (ctx: any) => {
-              ctx.viewer.scene.setObjectsSelected(
-                ctx.viewer.scene.selectedObjectIds,
-                false
-              );
-              clearInfo();
-            },
-          },
-        ],
-      ],
-    });
-
-    // Tree 右鍵出選單；左鍵點節點→隔離+飛入
-    treeView?.on('contextmenu', (e: any) => {
-      treeMenu.context = {
-        viewer: e.viewer,
-        treeViewPlugin: e.treeViewPlugin,
-        treeViewNode: e.treeViewNode,
-        entity: e.viewer.scene.objects[e.treeViewNode.objectId],
-      };
-      treeMenu.show(e.event.pageX, e.event.pageY);
-    });
-
-    treeView?.on('nodeTitleClicked', (e: any) => {
-      const scene = viewer.scene;
-      const objectIds: string[] = [];
-      e.treeViewPlugin.withNodeTree(e.treeViewNode, (n: any) => {
-        if (n.objectId) objectIds.push(n.objectId);
-      });
-      e.treeViewPlugin.unShowNode();
-      scene.setObjectsXRayed(scene.objectIds, true);
-      scene.setObjectsVisible(scene.objectIds, true);
-      scene.setObjectsXRayed(objectIds, false);
-      viewer.cameraFlight.flyTo(
-        { aabb: scene.getAABB(objectIds), duration: 0.5 },
-        () =>
-          setTimeout(() => {
-            scene.setObjectsVisible(scene.xrayedObjectIds, false);
-            scene.setObjectsXRayed(scene.xrayedObjectIds, false);
-          }, 500)
-      );
-    });
-
-    // 4-2 Canvas/Entity 選單（空白處 vs. 點到實體）
-    const canvasMenu = new ContextMenu({
-      enabled: true,
-      context: { viewer },
-      items: [
-        [
-          {
-            title: 'Hide All',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numVisibleObjects > 0,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsVisible(
-                ctx.viewer.scene.visibleObjectIds,
-                false
-              ),
-          },
-          {
-            title: 'Show All',
-            getEnabled: (ctx: any) =>
-              ctx.viewer.scene.numVisibleObjects < ctx.viewer.scene.numObjects,
-            doAction: (ctx: any) => {
-              const s = ctx.viewer.scene;
-              s.setObjectsVisible(s.objectIds, true);
-              s.setObjectsXRayed(s.xrayedObjectIds, false);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-            },
-          },
-        ],
-        [
-          {
-            title: 'View Fit All',
-            doAction: (ctx: any) =>
-              ctx.viewer.cameraFlight.flyTo({
-                aabb: ctx.viewer.scene.getAABB(),
-              }),
-          },
-        ],
-      ],
-    });
-
-    const objectMenu = new ContextMenu({
-      items: [
-        [
-          {
-            title: 'View Fit',
-            doAction: (ctx: any) => {
-              const { viewer, entity } = ctx;
-              const scene = viewer.scene;
-              viewer.cameraFlight.flyTo(
-                { aabb: entity.aabb, duration: 0.5 },
-                () =>
-                  setTimeout(
-                    () =>
-                      scene.setObjectsHighlighted(
-                        scene.highlightedObjectIds,
-                        false
-                      ),
-                    500
-                  )
-              );
-            },
-          },
-          {
-            title: 'View Fit All',
-            doAction: (ctx: any) =>
-              ctx.viewer.cameraFlight.flyTo({
-                projection: 'perspective',
-                aabb: ctx.viewer.scene.getAABB(),
-                duration: 0.5,
-              }),
-          },
-          {
-            title: 'Show in Tree',
-            doAction: (ctx: any) => ctx.treeViewPlugin.showNode(ctx.entity.id),
-          },
-        ],
-        [
-          {
-            title: 'Hide',
-            getEnabled: (ctx: any) => ctx.entity.visible,
-            doAction: (ctx: any) => (ctx.entity.visible = false),
-          },
-          {
-            title: 'Hide Others',
-            doAction: (ctx: any) => {
-              const { viewer, entity } = ctx;
-              const s = viewer.scene;
-              const mo = viewer.metaScene.metaObjects[entity.id];
-              if (!mo) return;
-              s.setObjectsVisible(s.visibleObjectIds, false);
-              s.setObjectsXRayed(s.xrayedObjectIds, false);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-              s.setObjectsHighlighted(s.highlightedObjectIds, false);
-              mo.withMetaObjectsInSubtree((m: any) => {
-                const e = s.objects[m.id];
-                if (e) e.visible = true;
-              });
-            },
-          },
-          {
-            title: 'Hide All',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numVisibleObjects > 0,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsVisible(
-                ctx.viewer.scene.visibleObjectIds,
-                false
-              ),
-          },
-          {
-            title: 'Show All',
-            getEnabled: (ctx: any) =>
-              ctx.viewer.scene.numVisibleObjects < ctx.viewer.scene.numObjects,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsVisible(
-                ctx.viewer.scene.objectIds,
-                true
-              ),
-          },
-        ],
-        [
-          {
-            title: 'X-Ray',
-            getEnabled: (ctx: any) => !ctx.entity.xrayed,
-            doAction: (ctx: any) => (ctx.entity.xrayed = true),
-          },
-          {
-            title: 'Undo X-Ray',
-            getEnabled: (ctx: any) => ctx.entity.xrayed,
-            doAction: (ctx: any) => (ctx.entity.xrayed = false),
-          },
-          {
-            title: 'X-Ray Others',
-            doAction: (ctx: any) => {
-              const { viewer, entity } = ctx;
-              const s = viewer.scene;
-              const mo = viewer.metaScene.metaObjects[entity.id];
-              if (!mo) return;
-              s.setObjectsVisible(s.objectIds, true);
-              s.setObjectsXRayed(s.objectIds, true);
-              s.setObjectsSelected(s.selectedObjectIds, false);
-              s.setObjectsHighlighted(s.highlightedObjectIds, false);
-              mo.withMetaObjectsInSubtree((m: any) => {
-                const e = s.objects[m.id];
-                if (e) e.xrayed = false;
-              });
-            },
-          },
-          {
-            title: 'Reset X-Ray',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numXRayedObjects > 0,
-            doAction: (ctx: any) =>
-              ctx.viewer.scene.setObjectsXRayed(
-                ctx.viewer.scene.xrayedObjectIds,
-                false
-              ),
-          },
-        ],
-        [
-          {
-            title: 'Select',
-            getEnabled: (ctx: any) => !ctx.entity.selected,
-            doAction: (ctx: any) => {
-              ctx.entity.selected = true;
-              // console.log(ctx.entity);
-              showInfoFor(ctx.viewer, ctx.entity.id);
-            },
-          },
-          {
-            title: 'Undo select',
-            getEnabled: (ctx: any) => ctx.entity.selected,
-            doAction: (ctx: any) => {
-              ctx.entity.selected = false;
-              if (dwInfo?.id === ctx.entity.id) clearInfo();
-            },
-          },
-          {
-            title: 'Clear Selection',
-            getEnabled: (ctx: any) => ctx.viewer.scene.numSelectedObjects > 0,
-            doAction: (ctx: any) => {
-              ctx.viewer.scene.setObjectsSelected(
-                ctx.viewer.scene.selectedObjectIds,
-                false
-              );
-              clearInfo();
-            },
-          },
-        ],
-      ],
-    });
-
-    // 右鍵（或觸控長按）分流：如果有 pick 到 entity → objectMenu，否則 canvasMenu
-    const canvasEl = sceneCanvasRef.current as HTMLCanvasElement;
-
-    const getCanvasPos = (pageX: number, pageY: number) => {
-      const rect = canvasEl.getBoundingClientRect();
-      const x = pageX - (rect.left + window.scrollX);
-      const y = pageY - (rect.top + window.scrollY);
-      return [x, y] as [number, number];
+    // 7) Menus（可外部注入）
+    const deps = {
+      viewer,
+      treeView,
+      showInfoFor,
+      clearInfo,
+      getCanvasPos: (x: number, y: number) => {
+        const el = sceneCanvasRef.current!;
+        const rect = el.getBoundingClientRect();
+        return [
+          x - (rect.left + window.scrollX),
+          y - (rect.top + window.scrollY),
+        ] as [number, number];
+      },
     };
 
+    const treeMenu = (menuBuilders?.tree ?? createDefaultTreeMenu)(deps);
+    const canvasMenu = (menuBuilders?.canvas ?? createDefaultCanvasMenu)(deps);
+    const objectMenu = (menuBuilders?.object ?? createDefaultObjectMenu)(deps);
+
+    // 8) 右鍵位置判斷：物件 vs 空白
     const openMenuAt = (pageX: number, pageY: number) => {
-      const hit = viewer.scene.pick({ canvasPos: getCanvasPos(pageX, pageY) });
+      const hit = viewer.scene.pick({
+        canvasPos: deps.getCanvasPos!(pageX, pageY),
+      });
       if (hit && (hit.entity as any)?.isObject) {
         objectMenu.context = {
           viewer,
@@ -690,9 +214,35 @@ export default function ContextMenuTreeView({
       }
     };
 
-    // 滑鼠右鍵
+    // 9) RMB 拖曳距離判斷 + 原生 contextmenu 阻止
+    const canvasEl = sceneCanvasRef.current as HTMLCanvasElement;
+    let rmbDown = false;
+    let rmbStartX = 0,
+      rmbStartY = 0;
+    let rmbMoved = false;
 
-    // 觸控長按
+    const onNativeContextMenu = (e: MouseEvent) => e.preventDefault();
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 2) return;
+      rmbDown = true;
+      rmbMoved = false;
+      rmbStartX = e.pageX;
+      rmbStartY = e.pageY;
+    };
+    const onMouseMove2 = (e: MouseEvent) => {
+      if (!rmbDown) return;
+      const dx = e.pageX - rmbStartX;
+      const dy = e.pageY - rmbStartY;
+      if (dx * dx + dy * dy > MOVE_TOL * MOVE_TOL) rmbMoved = true;
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 2) return;
+      if (!rmbMoved) openMenuAt(e.pageX, e.pageY);
+      rmbDown = false;
+      rmbMoved = false;
+    };
+
+    // 10) 觸控長按
     let pressTimer = 0 as unknown as number;
     let startX = 0,
       startY = 0;
@@ -700,7 +250,6 @@ export default function ContextMenuTreeView({
       const t = e.touches[0];
       startX = t.clientX;
       startY = t.clientY;
-
       pressTimer = window.setTimeout(
         () => openMenuAt(t.pageX, t.pageY),
         LONGPRESS_MS
@@ -717,7 +266,7 @@ export default function ContextMenuTreeView({
     };
     const onTouchEnd = () => clearTimeout(pressTimer);
 
-    // 5) hover 高亮（沿用你 TreeViewStoreys 的寫法）
+    // 11) hover 高亮
     let lastEntity: any = null;
     const onMouseMove = (e: MouseEvent) => {
       const rect = canvasEl.getBoundingClientRect();
@@ -735,62 +284,43 @@ export default function ContextMenuTreeView({
         lastEntity = null;
       }
     };
-    canvasEl.addEventListener('mousemove', onMouseMove);
 
-    // ✅ 新增：右鍵按下→移動→放開 的判斷式
-    let rmbDown = false;
-    let rmbStartX = 0,
-      rmbStartY = 0;
-    let rmbMoved = false;
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 2) return; // 只處理右鍵
-      rmbDown = true;
-      rmbMoved = false;
-      rmbStartX = e.pageX;
-      rmbStartY = e.pageY;
-      // 先擋掉瀏覽器原生選單（有些瀏覽器會在 mouseup 觸發）
-      // 不在這裡打開自訂選單，等待 mouseup 時依距離判定
-    };
-
-    const onMouseMove2 = (e: MouseEvent) => {
-      if (!rmbDown) return;
-      const dx = e.pageX - rmbStartX;
-      const dy = e.pageY - rmbStartY;
-      if (dx * dx + dy * dy > MOVE_TOL * MOVE_TOL) {
-        rmbMoved = true;
-      }
-    };
-
-    const onMouseUp = (e: MouseEvent) => {
-      if (e.button !== 2) return;
-      // 在 mouseup 時才決定要不要開選單
-      if (!rmbMoved) {
-        openMenuAt(e.pageX, e.pageY);
-      }
-      rmbDown = false;
-      rmbMoved = false;
-    };
-
-    // 完全阻止瀏覽器原生 contextmenu（避免拖動後仍被觸發）
-    const onNativeContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
+    // 綁事件
+    canvasEl.addEventListener('contextmenu', onNativeContextMenu);
     canvasEl.addEventListener('mousedown', onMouseDown);
     canvasEl.addEventListener('mousemove', onMouseMove2);
     canvasEl.addEventListener('mouseup', onMouseUp);
-    canvasEl.addEventListener('contextmenu', onNativeContextMenu);
+    canvasEl.addEventListener('mousemove', onMouseMove);
+
+    canvasEl.addEventListener('touchstart', onTouchStart);
+    canvasEl.addEventListener('touchmove', onTouchMove);
+    canvasEl.addEventListener('touchend', onTouchEnd);
+
+    // Tree 右鍵
+    treeView?.on('contextmenu', (e: any) => {
+      treeMenu.context = {
+        viewer: e.viewer,
+        treeViewPlugin: e.treeViewPlugin,
+        treeViewNode: e.treeViewNode,
+        entity: e.viewer.scene.objects[e.treeViewNode.objectId],
+      };
+      treeMenu.show(e.event.pageX, e.event.pageY);
+    });
 
     // 清理
     return () => {
       try {
-        canvasEl.removeEventListener('mousemove', onMouseMove);
+        canvasEl.removeEventListener('contextmenu', onNativeContextMenu);
+        canvasEl.removeEventListener('mousedown', onMouseDown);
         canvasEl.removeEventListener('mousemove', onMouseMove2);
+        canvasEl.removeEventListener('mouseup', onMouseUp);
+        canvasEl.removeEventListener('mousemove', onMouseMove);
+
         canvasEl.removeEventListener('touchstart', onTouchStart);
         canvasEl.removeEventListener('touchmove', onTouchMove);
         canvasEl.removeEventListener('touchend', onTouchEnd);
       } catch {}
+
       try {
         treeView?.destroy?.();
       } catch {}
@@ -807,15 +337,12 @@ export default function ContextMenuTreeView({
       viewerRef.current = null;
       treeViewRef.current = null;
     };
-  }, [src, infoType]);
+  }, [src, autoExpandDepth, menuBuilders, infoType]);
 
   return (
-    <>
-      {/* 主畫布 */}
-      <canvas
-        ref={sceneCanvasRef}
-        style={{ width: '100%', height: '100%', display: 'block' }}
-      />
+    <div className={`relative w-full h-full ${className ?? ''}`}>
+      {/* 主 Canvas */}
+      <canvas ref={sceneCanvasRef} className="block w-full h-full" />
 
       {/* NavCube */}
       {navCube && (
@@ -823,20 +350,16 @@ export default function ContextMenuTreeView({
           ref={navCanvasRef}
           width={250}
           height={250}
-          style={{
-            position: 'absolute',
-            right: 10,
-            bottom: 50,
-            width: 250,
-            height: 250,
-            zIndex: 200000,
-            pointerEvents: 'auto',
-          }}
+          className="
+            absolute right-2.5 bottom-[50px]
+            w-[250px] h-[250px] z-[200000]
+            pointer-events-auto
+          "
         />
       )}
 
-      {/* Tree 容器（左側） */}
-      <div className="absolute top-23 left-10">
+      {/* Tree category button（左側） */}
+      <div className="absolute top-1 left-2">
         {infoTypeArray.map((item) => {
           return (
             <button
@@ -855,107 +378,32 @@ export default function ContextMenuTreeView({
           );
         })}
       </div>
+
+      {/* Tree 容器 */}
       <div
         ref={treeRef}
-        className="pt-2 pointer-events-auto h-[75%] overflow-y-auto absolute bg-white/20 text-black top-35 z-[200000] left-10 pl-[10px] font-roboto text-[15px] select-none"
+        className="
+          pointer-events-auto absolute top-12 left-0 z-[200000]
+          h-[90%] overflow-y-auto
+          bg-white/20 text-black
+          pl-[10px] font-roboto text-[15px] select-none
+        "
         style={{ width: treeWidth }}
       />
 
-      {/* 簡易資訊 */}
+      {/* 資訊面板（選中門/窗時顯示） */}
+      {dwInfo && <InfoPanel info={dwInfo} onClose={() => setDwInfo(null)} />}
+
+      {/* 右下角提示 */}
       <div
-        style={{
-          position: 'absolute',
-          bottom: 12,
-          right: 16,
-          padding: '6px 10px',
-          background: 'rgba(255,255,255,0.8)',
-          borderRadius: 6,
-          border: '1px solid #ddd',
-          fontSize: 14,
-          zIndex: 200001,
-        }}
+        className="
+          absolute bottom-3 right-4 z-[200001]
+          border border-gray-200 rounded-md
+          bg-white/80 px-3 py-1.5 text-sm
+        "
       >
         {info}
       </div>
-
-      {/* 右側資訊面板（只在選中門窗時顯示） */}
-      {/* 右側資訊面板（只在選中門窗時顯示） */}
-      {dwInfo && (
-        <div
-          className="
-      absolute top-30 right-5 w-72
-      bg-white/60  rounded-xl
-      p-4 z-[200010] shadow-lg
-      text-sm leading-relaxed text-black
-    "
-        >
-          {/* 標題 */}
-          <div className="font-bold mb-2">
-            {dwInfo.type.replace(/^Ifc/, '')} Info
-          </div>
-
-          {/* 基本屬性 */}
-          <div>
-            <span className="font-semibold">ID:</span> {dwInfo.id}
-          </div>
-          {dwInfo.globalId && (
-            <div>
-              <span className="font-semibold">GlobalId:</span> {dwInfo.globalId}
-            </div>
-          )}
-          {dwInfo.name && (
-            <div>
-              <span className="font-semibold">Name:</span> {dwInfo.name}
-            </div>
-          )}
-
-          {/* IFC 尺寸 */}
-          {(dwInfo.overallWidthMM || dwInfo.overallHeightMM) && (
-            <>
-              <hr className="my-2 border-gray-300" />
-              <div className="font-semibold mb-1">IFC Size</div>
-              {dwInfo.overallWidthMM && (
-                <div>Width: {dwInfo.overallWidthMM} mm</div>
-              )}
-              {dwInfo.overallHeightMM && (
-                <div>Height: {dwInfo.overallHeightMM} mm</div>
-              )}
-            </>
-          )}
-
-          {/* AABB 尺寸 */}
-          {dwInfo.aabbDimsMM && (
-            <>
-              <hr className="my-2 border-gray-300" />
-              <div className="font-semibold mb-1">AABB (approx.)</div>
-              <div>
-                LxWxH ≈ {dwInfo.aabbDimsMM.x} × {dwInfo.aabbDimsMM.y} ×{' '}
-                {dwInfo.aabbDimsMM.z} mm
-              </div>
-            </>
-          )}
-
-          {/* 關閉按鈕 */}
-          <div className="mt-3 text-right">
-            {/* 關閉按鈕 (右上角 X) */}
-            <button
-              onClick={() => clearInfo()}
-              className="
-      absolute top-2 right-2
-      w-7 h-7 flex items-center justify-center
-      rounded-full border border-gray-300
-      bg-gray-100! hover:bg-gray-200!
-      text-gray-600! hover:text-gray-800!
-      text-lg
-      cursor-pointer
-      transition
-  "
-            >
-              x
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
