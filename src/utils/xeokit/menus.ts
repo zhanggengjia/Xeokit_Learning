@@ -1,7 +1,6 @@
-import { ContextMenu, Viewer, TreeViewPlugin } from '@xeokit/xeokit-sdk';
+import { ContextMenu, TreeViewPlugin } from '@xeokit/xeokit-sdk';
 
 export type MenuCtxDeps = {
-  viewer: Viewer;
   treeView?: TreeViewPlugin | null;
   showInfoFor: (id: string) => void;
   clearInfo: () => void;
@@ -66,6 +65,19 @@ export const createDefaultTreeMenu: MenuBuilder = ({
               if (e) e.visible = false;
             }),
         },
+        // Second way for hidding
+        // {
+        //   title: 'Hide2',
+        //   doAction: (ctx: any) => {
+        //     const scene = ctx.viewer.scene;
+        //     const objectIds: string[] = [];
+        //     ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
+        //       if (!n.objectId) return;
+        //       objectIds.push(n.objectId);
+        //     });
+        //     scene.setObjectsVisible(objectIds, false);
+        //   },
+        // },
         {
           title: 'Hide Others',
           doAction: (ctx: any) => {
@@ -197,13 +209,11 @@ export const createDefaultTreeMenu: MenuBuilder = ({
         {
           title: 'Deselect',
           doAction: (ctx: any) => {
-            let id: string | undefined;
             ctx.treeViewPlugin.withNodeTree(ctx.treeViewNode, (n: any) => {
               if (!n.objectId) return;
               const e = ctx.viewer.scene.objects[n.objectId];
               if (e) {
                 e.selected = false;
-                id = n.objectId;
               }
             });
             clearInfo();
@@ -226,9 +236,8 @@ export const createDefaultTreeMenu: MenuBuilder = ({
 };
 
 // 預設 Canvas 選單
-export const createDefaultCanvasMenu: MenuBuilder = ({ viewer }) =>
+export const createDefaultCanvasMenu: MenuBuilder = () =>
   new ContextMenu({
-    context: { viewer },
     items: [
       [
         {

@@ -175,7 +175,6 @@ export default function ContextMenuTreeView({
 
     // 7) Menus（可外部注入）
     const deps = {
-      viewer,
       treeView,
       showInfoFor,
       clearInfo,
@@ -218,6 +217,8 @@ export default function ContextMenuTreeView({
       rmbStartY = 0;
     let rmbMoved = false;
 
+    let lastEntity: any = null;
+
     const onNativeContextMenu = (e: MouseEvent) => e.preventDefault();
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 2) return;
@@ -226,17 +227,39 @@ export default function ContextMenuTreeView({
       rmbStartX = e.pageX;
       rmbStartY = e.pageY;
     };
-    const onMouseMove2 = (e: MouseEvent) => {
-      if (!rmbDown) return;
-      const dx = e.pageX - rmbStartX;
-      const dy = e.pageY - rmbStartY;
-      if (dx * dx + dy * dy > MOVE_TOL * MOVE_TOL) rmbMoved = true;
-    };
     const onMouseUp = (e: MouseEvent) => {
       if (e.button !== 2) return;
       if (!rmbMoved) openMenuAt(e.pageX, e.pageY);
       rmbDown = false;
       rmbMoved = false;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      // A) 右鍵拖移距離判斷
+      if (rmbDown) {
+        const dx = e.pageX - rmbStartX;
+        const dy = e.pageY - rmbStartY;
+        if (dx * dx + dy * dy > MOVE_TOL * MOVE_TOL) rmbMoved = true;
+        // 右鍵拖移期間不做 hover 拾取，直接 return（降噪 + 省算力）
+        return;
+      }
+
+      // B) Hover 拾取與高亮
+      const rect = canvasEl.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const hit = viewer.scene.pick({ canvasPos: [x, y] });
+
+      if (hit && hit.entity) {
+        if (!lastEntity || hit.entity.id !== lastEntity.id) {
+          if (lastEntity) lastEntity.highlighted = false;
+          lastEntity = hit.entity;
+          hit.entity.highlighted = true;
+        }
+      } else {
+        if (lastEntity) lastEntity.highlighted = false;
+        lastEntity = null;
+      }
     };
 
     // 10) 觸控長按
@@ -252,6 +275,7 @@ export default function ContextMenuTreeView({
         LONGPRESS_MS
       );
     };
+
     const onTouchMove = (e: TouchEvent) => {
       const t = e.touches[0];
       if (
@@ -263,29 +287,9 @@ export default function ContextMenuTreeView({
     };
     const onTouchEnd = () => clearTimeout(pressTimer);
 
-    // 11) hover 高亮
-    let lastEntity: any = null;
-    const onMouseMove = (e: MouseEvent) => {
-      const rect = canvasEl.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const hit = viewer.scene.pick({ canvasPos: [x, y] });
-      if (hit && hit.entity) {
-        if (!lastEntity || hit.entity.id !== lastEntity.id) {
-          if (lastEntity) lastEntity.highlighted = false;
-          lastEntity = hit.entity;
-          hit.entity.highlighted = true;
-        }
-      } else {
-        if (lastEntity) lastEntity.highlighted = false;
-        lastEntity = null;
-      }
-    };
-
     // 綁事件
     canvasEl.addEventListener('contextmenu', onNativeContextMenu);
     canvasEl.addEventListener('mousedown', onMouseDown);
-    canvasEl.addEventListener('mousemove', onMouseMove2);
     canvasEl.addEventListener('mouseup', onMouseUp);
     canvasEl.addEventListener('mousemove', onMouseMove);
 
@@ -309,7 +313,6 @@ export default function ContextMenuTreeView({
       try {
         canvasEl.removeEventListener('contextmenu', onNativeContextMenu);
         canvasEl.removeEventListener('mousedown', onMouseDown);
-        canvasEl.removeEventListener('mousemove', onMouseMove2);
         canvasEl.removeEventListener('mouseup', onMouseUp);
         canvasEl.removeEventListener('mousemove', onMouseMove);
 
