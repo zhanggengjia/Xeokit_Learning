@@ -12,8 +12,6 @@ export type MenuBuilder = (deps: MenuCtxDeps) => ContextMenu;
 
 // 預設 Tree 選單
 export const createDefaultTreeMenu: MenuBuilder = ({
-  viewer,
-  treeView,
   showInfoFor,
   clearInfo,
 }) => {
@@ -266,8 +264,6 @@ export const createDefaultCanvasMenu: MenuBuilder = ({ viewer }) =>
 
 // 預設 Object 選單
 export const createDefaultObjectMenu: MenuBuilder = ({
-  viewer,
-  treeView,
   showInfoFor,
   clearInfo,
 }) =>

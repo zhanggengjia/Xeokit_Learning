@@ -13,6 +13,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
     "@xeokit/xeokit-sdk": "^2.6.90",
+    "ml-matrix": "^6.12.1",
     "pako": "^2.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

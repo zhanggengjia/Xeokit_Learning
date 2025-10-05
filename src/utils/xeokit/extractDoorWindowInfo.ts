@@ -19,9 +19,11 @@ export function extractDoorWindowInfo(
   if (!meta || !entity) return null;
 
   const type = meta.type || '';
+
   if (type !== 'IfcWindow' && type !== 'IfcDoor') return null;
 
   const props = (meta as any).properties || {};
+
   const allPairs: Array<[string, any]> = Object.entries(props);
 
   const widthKeys = ['OverallWidth', 'Overall width', 'Width', 'Overall_Width'];

@@ -21,6 +21,7 @@ import { setupPivot } from '../utils/xeokit/setupPivot';
 import { setupNavCube } from '../utils/xeokit/setupNavCube';
 import { createGrid } from '../utils/xeokit/createGrid';
 import { loadXKT } from '../utils/xeokit/loadXKT';
+import { setupHighlightAndSelectMaterials } from '../utils/xeokit/setupMaterials';
 
 type Props = {
   src: string;
@@ -64,7 +65,6 @@ export default function ContextMenuTreeView({
   const treeRef = useRef<HTMLDivElement | null>(null);
 
   const viewerRef = useRef<Viewer | null>(null);
-  const treeViewRef = useRef<TreeViewPlugin | null>(null);
 
   const [info, setInfo] = useState('Loading...');
   const [dwInfo, setDwInfo] = useState<DoorWindowInfo | null>(null);
@@ -98,21 +98,10 @@ export default function ContextMenuTreeView({
 
     // 2) Camera / Pivot
     setupCamera(viewer, camera);
-    viewer.cameraControl.followPointer = true;
     const disposePivot = setupPivot(viewer);
 
-    // 3) Highlight/Selected 材質（可抽 utils；此處簡寫）
-    viewer.scene.highlightMaterial.fill = true;
-    viewer.scene.highlightMaterial.edges = true;
-    viewer.scene.highlightMaterial.fillAlpha = 0.1;
-    viewer.scene.highlightMaterial.edgeAlpha = 0.1;
-    viewer.scene.highlightMaterial.edgeColor = [1, 1, 0];
-
-    viewer.scene.selectedMaterial.fill = true;
-    viewer.scene.selectedMaterial.edges = true;
-    viewer.scene.selectedMaterial.fillAlpha = 0.5;
-    viewer.scene.selectedMaterial.edgeAlpha = 0.6;
-    viewer.scene.selectedMaterial.edgeColor = [0, 1, 1];
+    // 3) Highlight/Selected 材質
+    setupHighlightAndSelectMaterials(viewer);
 
     // 4) NavCube / Grid
     const disposeNavCube =
@@ -136,7 +125,6 @@ export default function ContextMenuTreeView({
         hierarchy: infoType,
         sortNodes: true,
       });
-      treeViewRef.current = treeView;
 
       // 節點左鍵：隔離 + 飛入（保留原有習慣）
       treeView.on('nodeTitleClicked', (e: any) => {
@@ -171,7 +159,16 @@ export default function ContextMenuTreeView({
     });
     sceneModel.on?.('loaded', () => {
       const t1 = performance.now();
-      setInfo(`Model loaded in ${Math.floor((t1 - t0) / 1000)}s`);
+      const anyModel = sceneModel as any;
+      const objectsCount =
+        anyModel?.numEntities ??
+        (anyModel?.entities
+          ? Object.keys(anyModel.entities).length
+          : undefined);
+      setInfo(
+        `Model loaded in ${Math.floor((t1 - t0) / 1000)} seconds` +
+          (objectsCount != null ? `\nObjects: ${objectsCount}` : '')
+      );
       viewer.cameraFlight?.flyTo(sceneModel);
       viewer.scene.render();
     });
@@ -335,7 +332,6 @@ export default function ContextMenuTreeView({
       disposePivot?.();
       viewer.destroy?.();
       viewerRef.current = null;
-      treeViewRef.current = null;
     };
   }, [src, autoExpandDepth, menuBuilders, infoType]);
 
@@ -350,11 +346,7 @@ export default function ContextMenuTreeView({
           ref={navCanvasRef}
           width={250}
           height={250}
-          className="
-            absolute right-2.5 bottom-[50px]
-            w-[250px] h-[250px] z-[200000]
-            pointer-events-auto
-          "
+          className="absolute right-2.5 bottom-[50px] w-[250px] h-[250px] z-[200000] pointer-events-auto"
         />
       )}
 
@@ -382,12 +374,7 @@ export default function ContextMenuTreeView({
       {/* Tree 容器 */}
       <div
         ref={treeRef}
-        className="
-          pointer-events-auto absolute top-12 left-0 z-[200000]
-          h-[90%] overflow-y-auto
-          bg-white/20 text-black
-          pl-[10px] font-roboto text-[15px] select-none
-        "
+        className="pointer-events-auto absolute top-12 left-0 z-[200000] h-[90%] overflow-y-auto bg-white/20 text-black pl-[10px] font-roboto text-[15px] select-none"
         style={{ width: treeWidth }}
       />
 
@@ -396,11 +383,8 @@ export default function ContextMenuTreeView({
 
       {/* 右下角提示 */}
       <div
-        className="
-          absolute bottom-3 right-4 z-[200001]
-          border border-gray-200 rounded-md
-          bg-white/80 px-3 py-1.5 text-sm
-        "
+        className="absolute bottom-3 right-4 z-[200001] border border-gray-200 rounded-md bg-white/80 px-3 py-1.5 text-sm text-black"
+        style={{ whiteSpace: 'pre-line' }}
       >
         {info}
       </div>
