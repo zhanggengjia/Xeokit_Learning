@@ -355,7 +355,7 @@ export default function ContextMenuTreeView({
           ref={navCanvasRef}
           width={250}
           height={250}
-          className="absolute right-2.5 bottom-[50px] w-[250px] h-[250px] z-[200000] pointer-events-auto"
+          className="absolute right-2.5 bottom-[50px] w-[250px] h-[250px] z-[1] pointer-events-auto"
         />
       )}
 
@@ -383,7 +383,7 @@ export default function ContextMenuTreeView({
       {/* Tree 容器 */}
       <div
         ref={treeRef}
-        className="pointer-events-auto absolute top-12 left-0 z-[200000] h-[90%] overflow-y-auto bg-white/20 text-black pl-[10px] font-roboto text-[15px] select-none"
+        className="pointer-events-auto absolute top-12 left-0 z-[200] h-[90%] overflow-y-auto bg-white/20 text-black pl-[10px] font-roboto text-[15px] select-none"
         style={{ width: treeWidth }}
       />
 
@@ -392,7 +392,7 @@ export default function ContextMenuTreeView({
 
       {/* 右下角提示 */}
       <div
-        className="absolute bottom-3 right-4 z-[200001] border border-gray-200 rounded-md bg-white/80 px-3 py-1.5 text-sm text-black"
+        className="absolute bottom-3 right-4 z-[201] border border-gray-200 rounded-md bg-white/80 px-3 py-1.5 text-sm text-black"
         style={{ whiteSpace: 'pre-line' }}
       >
         {info}

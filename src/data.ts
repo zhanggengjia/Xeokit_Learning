@@ -50,6 +50,11 @@ export let ifcModels: ifcModel[] = [
     format: 'ifc',
   },
   // =================================================
+  {
+    label: 'Ifc2x3_SampleCastle',
+    path: '/models/xkt/Ifc2x3_SampleCastle.ifc.xkt',
+    format: 'xkt',
+  },
   { label: 'Duplex', path: '/models/xkt/Duplex.ifc.xkt', format: 'xkt' },
   {
     label: 'IfcOpenHouse4',
@@ -57,7 +62,19 @@ export let ifcModels: ifcModel[] = [
     format: 'xkt',
   },
 
-  { label: '19_rue_Marc_Antoine_Petit_Ground_floor', path: '/models/xkt/19_rue_Marc_Antoine_Petit_Ground_floor.ifc.xkt', format: 'xkt' }
-,
-  { label: 'Ifc2x3_SampleCastle', path: '/models/xkt/Ifc2x3_SampleCastle.ifc.xkt', format: 'xkt' }
+  {
+    label: '19_rue_Marc_Antoine_Petit_Ground_floor',
+    path: '/models/xkt/19_rue_Marc_Antoine_Petit_Ground_floor.ifc.xkt',
+    format: 'xkt',
+  },
+  {
+    label: 'Rac_Advanced_Project',
+    path: '/models/xkt/rac_advanced_sample_project.ifc.xkt',
+    format: 'xkt',
+  },
+  {
+    label: 'rme_advanced_sample_project',
+    path: '/models/xkt/rme_advanced_sample_project.ifc.xkt',
+    format: 'xkt',
+  },
 ];

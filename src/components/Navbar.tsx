@@ -148,13 +148,13 @@ const Navbar = ({
             </label>
             <ul
               tabIndex={0}
-              className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-200 rounded-box w-52 right-0 -translate-x-2"
+              className="menu menu-sm dropdown-content mt-3  p-2 shadow bg-base-200 rounded-box w-55 right-0 -translate-x-2 "
               role="menu"
             >
               {modelItems.map(({ label, format }, idx) => {
                 if (format == modelFormat) {
                   return (
-                    <li key={label} className="my-1">
+                    <li key={label} className="my-1 z-[2000000]!">
                       <button
                         type="button"
                         className={

@@ -6,6 +6,7 @@ import { setupPivot } from '../utils/xeokit/setupPivot';
 import { setupNavCube } from '../utils/xeokit/setupNavCube';
 import { loadXKT } from '../utils/xeokit/loadXKT';
 import SectionPlaneToggle from '../components/SectionPlaneToggle';
+import { Viewer } from '@xeokit/xeokit-sdk';
 
 type XeokitViewerProps = {
   src: string; // xkt 路徑
@@ -43,48 +44,36 @@ export default function XktModelViewer({
     let disposeNavCube: (() => void) | undefined;
     let gridMesh: any | undefined;
 
-    (async () => {
-      if (!sceneCanvasRef.current) return;
+    if (!sceneCanvasRef.current) return;
 
-      // 用專案 base 組成絕對 URL，避免相對路徑在 Netlify 出錯
-      const url = new URL(
-        `${import.meta.env.BASE_URL}lib/xeokit-sdk.min.es.js`,
-        window.location.origin
-      ).toString();
-      // 告訴 Vite 不要分析這個 import（否則它會報你現在那個錯）
-      const mod = await import(/* @vite-ignore */ url);
+    const viewer = new Viewer({
+      canvasElement: sceneCanvasRef.current,
+      transparent: true,
+      readableGeometryEnabled: true, // 你需要的屬性
+    });
+    viewerRef.current = viewer;
 
-      const { Viewer } = mod as any;
+    // 相機 / Pivot
+    setupCamera(viewer, camera);
+    disposePivot = setupPivot(viewer);
 
-      const viewer = new Viewer({
-        canvasElement: sceneCanvasRef.current,
-        transparent: true,
-        readableGeometryEnabled: true, // 你需要的屬性
-      });
-      viewerRef.current = viewer;
+    // NavCube
+    if (navCube && navCanvasRef.current) {
+      disposeNavCube = setupNavCube(viewer, navCanvasRef.current);
+    }
 
-      // 相機 / Pivot
-      setupCamera(viewer, camera);
-      disposePivot = setupPivot(viewer);
+    // Grid
+    if (grid) {
+      gridMesh = createGrid(viewer, grid);
+    }
 
-      // NavCube
-      if (navCube && navCanvasRef.current) {
-        disposeNavCube = setupNavCube(viewer, navCanvasRef.current);
-      }
-
-      // Grid
-      if (grid) {
-        gridMesh = createGrid(viewer, grid);
-      }
-
-      // 載入 XKT
-      const loaded = loadXKT(viewer, {
-        src,
-        withSectionPlane: false, // 關掉，避免和按鈕邏輯衝突
-      });
-      sceneModelRef.current = loaded.sceneModel;
-      disposeModel = loaded.dispose;
-    })();
+    // 載入 XKT
+    const loaded = loadXKT(viewer, {
+      src,
+      withSectionPlane: false, // 關掉，避免和按鈕邏輯衝突
+    });
+    sceneModelRef.current = loaded.sceneModel;
+    disposeModel = loaded.dispose;
 
     return () => {
       try {

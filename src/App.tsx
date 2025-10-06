@@ -16,7 +16,7 @@ export default function App() {
     srcPath = '/models/ifc/Duplex.ifc';
   }
   if (selectPageFormat !== selectModelFormat && selectPageFormat == 'xkt') {
-    srcPath = '/models/xkt/Duplex_A_20110505.glTFEmbedded.xkt';
+    srcPath = '/models/xkt/Ifc2x3_SampleCastle.ifc.xkt';
   }
 
   const fileName = srcPath.split('/').pop();
