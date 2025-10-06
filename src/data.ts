@@ -37,43 +37,27 @@ type ifcModel = {
   format: 'ifc' | 'xkt';
 };
 
-export const ifcModels: ifcModel[] = [
+export let ifcModels: ifcModel[] = [
   { label: 'Duplex_ifc', path: '/models/ifc/Duplex.ifc', format: 'ifc' },
-  // { label: 'SampleCastle', name: 'Ifc2x3_SampleCastle.ifc' },
   {
     label: 'OpenHouse_ifc',
     path: '/models/ifc/IfcOpenHouse4.ifc',
     format: 'ifc',
   },
-  // { label: 'Rac_Advanced_Sample', name: 'rac_advanced_sample_project.ifc' },
   {
     label: 'Marc_Antoine_Petit_ifc',
     path: '/models/ifc/19_rue_Marc_Antoine_Petit_Ground_floor.ifc',
     format: 'ifc',
   },
-  // {
-  //   label: 'Duplex',
-  //   path: '/models/xkt/v8/ifc/Duplex.ifc.xkt',
-  //   format: 'xkt',
-  // },
+  // =================================================
+  { label: 'Duplex', path: '/models/xkt/Duplex.ifc.xkt', format: 'xkt' },
   {
-    label: 'Schependomlann',
-    path: '/models/xkt/v8/ifc/Schependomlaan.ifc.xkt',
+    label: 'IfcOpenHouse4',
+    path: '/models/xkt/IfcOpenHouse4.ifc.xkt',
     format: 'xkt',
   },
-  {
-    label: 'Duplex2',
-    path: '/models/xkt/Duplex_A_20110505.glTFEmbedded.xkt',
-    format: 'xkt',
-  },
-  {
-    label: 'HolterTower',
-    path: '/models/xkt/v8/ifc/HolterTower.ifc.xkt',
-    format: 'xkt',
-  },
-  {
-    label: 'Rac_Advanced_Project',
-    path: '/models/xkt/v8/ifc/rac_advanced_sample_project.ifc.xkt',
-    format: 'xkt',
-  },
+
+  { label: '19_rue_Marc_Antoine_Petit_Ground_floor', path: '/models/xkt/19_rue_Marc_Antoine_Petit_Ground_floor.ifc.xkt', format: 'xkt' }
+,
+  { label: 'Ifc2x3_SampleCastle', path: '/models/xkt/Ifc2x3_SampleCastle.ifc.xkt', format: 'xkt' }
 ];

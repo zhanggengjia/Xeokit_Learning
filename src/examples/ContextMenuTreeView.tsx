@@ -77,7 +77,13 @@ export default function ContextMenuTreeView({
   const showInfoFor = (id: string) => {
     const v = viewerRef.current;
     if (!v) return;
-    const data = extractDoorWindowInfo(v as any, id);
+    const data = extractDoorWindowInfo(v as any, id, [
+      'IfcCovering',
+      'IfcDoor',
+      'IfcSlab',
+      'IfcWall',
+      'IfcWindow',
+    ]);
     setDwInfo(data); // 非門窗 → null → 不顯示
   };
   const clearInfo = () => setDwInfo(null);

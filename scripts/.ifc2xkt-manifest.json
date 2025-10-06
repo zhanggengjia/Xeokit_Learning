@@ -1,0 +1,32 @@
+{
+  "files": {
+    "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\ifc\\Duplex.ifc": {
+      "size": 1319290,
+      "mtimeMs": 1758189028487.6323,
+      "outXKT": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\Duplex.ifc.xkt",
+      "outMeta": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\Duplex.ifc.xkt.json",
+      "convertedAt": "2025-10-06T09:50:05.813Z"
+    },
+    "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\ifc\\IfcOpenHouse4.ifc": {
+      "size": 116158,
+      "mtimeMs": 1758189028492.4727,
+      "outXKT": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\IfcOpenHouse4.ifc.xkt",
+      "outMeta": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\IfcOpenHouse4.ifc.xkt.json",
+      "convertedAt": "2025-10-06T09:50:12.048Z"
+    },
+    "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\ifc\\19_rue_Marc_Antoine_Petit_Ground_floor.ifc": {
+      "size": 4186697,
+      "mtimeMs": 1758189028472.2625,
+      "outXKT": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\19_rue_Marc_Antoine_Petit_Ground_floor.ifc.xkt",
+      "outMeta": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\19_rue_Marc_Antoine_Petit_Ground_floor.ifc.xkt.json",
+      "convertedAt": "2025-10-06T09:54:13.363Z"
+    },
+    "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\ifc\\Ifc2x3_SampleCastle.ifc": {
+      "size": 49286967,
+      "mtimeMs": 1629763594000,
+      "outXKT": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\Ifc2x3_SampleCastle.ifc.xkt",
+      "outMeta": "C:\\Users\\USER\\Desktop\\ifc_learning\\xeokit-ifc-vite\\public\\models\\xkt\\Ifc2x3_SampleCastle.ifc.xkt.json",
+      "convertedAt": "2025-10-06T09:56:43.330Z"
+    }
+  }
+}

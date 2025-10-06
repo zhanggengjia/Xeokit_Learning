@@ -1,8 +1,15 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
-  "include": ["src", "src/types"]
+  "compilerOptions": {
+    "composite": true, // 必加
+    "tsBuildInfoFile": "./node_modules/.tsbuildinfo.app",
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler", // Vite/前端常用
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true
+    // 別放 "noEmit": true
+  },
+  "include": ["src"]
 }

@@ -164,7 +164,7 @@ const Navbar = ({
                         aria-current={idx === modelCurrent ? 'page' : undefined}
                         role="menuitem"
                       >
-                        {label}
+                        {label.length > 20 ? label.slice(0, 20) + '...' : label}
                       </button>
                     </li>
                   );

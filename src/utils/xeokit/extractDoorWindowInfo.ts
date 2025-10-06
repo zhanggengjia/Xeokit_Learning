@@ -2,7 +2,7 @@ import type { Viewer } from '@xeokit/xeokit-sdk';
 
 export type DoorWindowInfo = {
   id: string;
-  type: 'IfcWindow' | 'IfcDoor';
+  type: 'IfcWindow' | 'IfcDoor' | 'IfcWall' | 'IfcCovering' | 'IfcSlab';
   name?: string;
   globalId?: string;
   overallWidthMM?: number;
@@ -12,7 +12,8 @@ export type DoorWindowInfo = {
 
 export function extractDoorWindowInfo(
   viewer: Viewer,
-  objectId: string
+  objectId: string,
+  getType: DoorWindowInfo['type'][]
 ): DoorWindowInfo | null {
   const meta = (viewer as any).metaScene?.metaObjects?.[objectId];
   const entity = viewer.scene?.objects?.[objectId];
@@ -20,7 +21,10 @@ export function extractDoorWindowInfo(
 
   const type = meta.type || '';
 
-  if (type !== 'IfcWindow' && type !== 'IfcDoor') return null;
+  // ✅ 取出合法的 IFC 類型清單（由型別自動推導）
+  const validTypes: DoorWindowInfo['type'][] = getType;
+
+  if (!validTypes.includes(type as DoorWindowInfo['type'])) return null;
 
   const props = (meta as any).properties || {};
 
